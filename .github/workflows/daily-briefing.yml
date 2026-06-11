@@ -1,0 +1,51 @@
+name: Daily Market Intelligence Briefing
+
+on:
+  schedule:
+    # 11:00 UTC = 7:00 AM EDT (use 12:00 UTC during EST, Nov-Mar). Weekdays only.
+    - cron: "0 11 * * 1-5"
+  workflow_dispatch: {}   # allows manual runs from the Actions tab
+
+permissions:
+  contents: write   # to commit the updated database back (dedup memory)
+
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore article database
+        uses: actions/cache@v4
+        with:
+          path: data/intel.db
+          key: intel-db-${{ github.run_id }}
+          restore-keys: intel-db-
+
+      - name: Run briefing pipeline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          YUTORI_API_KEY: ${{ secrets.YUTORI_API_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        # During calibration (plan task 3.5), add --dry-run here and review the artifact instead
+        run: python run_briefing.py
+
+      - name: Upload briefing artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: briefing-${{ github.run_id }}
+          path: data/briefings/
+          if-no-files-found: ignore

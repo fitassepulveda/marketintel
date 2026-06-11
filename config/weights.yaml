@@ -1,0 +1,65 @@
+# Scoring configuration — mirrors the proposal deck (slide 4).
+# All weights are tunable without touching code.
+
+# Intelligence area priority weights (1-10)
+category_weights:
+  south_florida_competitive: 10
+  national_policy: 9
+  payer_insurance: 7
+  innovation_ai: 5
+  public_health_risk: 4
+  reputation_media: 3
+
+# Default source credibility weight (1-10) if not set per-source in sources.yaml
+default_source_weight: 6
+source_weights:
+  CMS Newsroom: 10
+  HHS News: 9
+  FDA Press Releases: 9
+  KFF Health News: 8
+  Healthcare Dive: 7
+  Fierce Healthcare: 7
+  STAT Health Tech: 8
+  CDC Newsroom: 9
+  WHO News: 8
+  NOAA NHC Atlantic: 9
+  South Florida Business Journal (Health): 8
+  Miami Herald Health Care: 8
+
+# South Florida competitive sub-factors (scored by LLM, weighted here)
+sf_competitive_factors:
+  capital_investment: 10
+  capacity_expansion: 9
+  geographic_proximity: 8
+  service_line_impact: 7
+
+# Composite score = weighted sum of normalized components (each 0-1)
+composite:
+  source_weight: 0.2
+  category_weight: 0.3
+  llm_relevance: 0.5
+
+# Items scoring below this (0-100 scale) are dropped as noise
+score_threshold: 55
+
+# Max items sent to the LLM relevance scorer per run (cost control).
+# Items are pre-ranked by source+category weight and keyword hits first.
+max_llm_scored_items: 60
+
+# Keyword pre-filter: an item containing any of these gets a pre-rank boost
+boost_keywords:
+  - merger
+  - acquisition
+  - expansion
+  - "new hospital"
+  - "medical center"
+  - reimbursement
+  - Medicare
+  - Medicaid
+  - CMS
+  - layoffs
+  - lawsuit
+  - "south florida"
+  - miami
+  - broward
+  - "palm beach"

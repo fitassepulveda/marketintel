@@ -1,0 +1,54 @@
+# Source inventory, organized by intelligence area.
+#
+# type: rss    -> pulled by src/ingest/rss.py (free)
+# type: yutori -> scraped + enriched by src/ingest/yutori.py (paid, use sparingly)
+#
+# verify: true means the feed URL is a best guess and MUST be checked with:
+#   python scripts/verify_sources.py
+# (Phase 1, task 1.1 of the implementation plan)
+
+national_policy:
+  - { name: CMS Newsroom,        type: rss,    url: "https://www.cms.gov/newsroom/rss-feeds", verify: true }
+  - { name: HHS News,            type: rss,    url: "https://www.hhs.gov/rss/news.xml", verify: true }
+  - { name: FDA Press Releases,  type: rss,    url: "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml", verify: true }
+  - { name: Healthcare Dive,     type: rss,    url: "https://www.healthcaredive.com/feeds/news/", verify: true }
+  - { name: Becker's Hospital Review, type: yutori, url: "https://www.beckershospitalreview.com" }
+  - { name: Modern Healthcare,   type: yutori, url: "https://www.modernhealthcare.com" }  # paywalled; confirm legal access
+
+south_florida_competitive:
+  # Competitor newsrooms (no public RSS -> Yutori).
+  # NOTE: confirm/edit this watchlist with leadership (plan task 0.4).
+  - { name: Baptist Health South Florida, type: yutori, url: "https://baptisthealth.net/baptist-health-news" }
+  - { name: Jackson Health System,        type: yutori, url: "https://jacksonhealth.org/news" }
+  - { name: Cleveland Clinic Florida,     type: yutori, url: "https://newsroom.clevelandclinic.org" }
+  - { name: Memorial Healthcare System,   type: yutori, url: "https://www.mhs.net/news" }
+  - { name: Mount Sinai Medical Center,   type: yutori, url: "https://www.msmc.com/about-us/news" }
+  - { name: HCA Florida Healthcare,       type: yutori, url: "https://www.hcafloridahealthcare.com/about-us/newsroom" }
+  - { name: Nicklaus Children's Hospital, type: yutori, url: "https://www.nicklauschildrens.org/about-us/news" }
+  - { name: South Florida Business Journal (Health), type: yutori, url: "https://www.bizjournals.com/southflorida/news/health-care" }
+  - { name: Miami Herald Health Care,     type: yutori, url: "https://www.miamiherald.com/news/health-care" }
+
+payer_insurance:
+  - { name: KFF Health News,     type: rss,    url: "https://kffhealthnews.org/feed/", verify: true }
+  - { name: Fierce Healthcare,   type: rss,    url: "https://www.fiercehealthcare.com/rss/xml", verify: true }
+  - { name: AHIP,                type: rss,    url: "https://www.ahip.org/feed", verify: true }
+  - { name: CMS Medicare,        type: yutori, url: "https://www.cms.gov/medicare" }
+
+innovation_ai:
+  - { name: STAT Health Tech,    type: rss,    url: "https://www.statnews.com/feed/", verify: true }
+  - { name: Rock Health,         type: rss,    url: "https://rockhealth.com/feed/", verify: true }
+  - { name: Healthcare IT News,  type: rss,    url: "https://www.healthcareitnews.com/home/feed", verify: true }
+  - { name: HIMSS,               type: yutori, url: "https://www.himss.org/news" }
+
+public_health_risk:
+  - { name: CDC Newsroom,        type: rss,    url: "https://tools.cdc.gov/api/v2/resources/media/132608.rss", verify: true }
+  - { name: WHO News,            type: rss,    url: "https://www.who.int/rss-feeds/news-english.xml", verify: true }
+  - { name: NOAA NHC Atlantic,   type: rss,    url: "https://www.nhc.noaa.gov/index-at.xml", verify: true }
+  - { name: Florida Dept of Health, type: yutori, url: "https://www.floridahealth.gov/newsroom" }
+
+reputation_media:
+  - { name: Miami Herald,            type: yutori, url: "https://www.miamiherald.com" }
+  - { name: South Florida Sun Sentinel, type: yutori, url: "https://www.sun-sentinel.com" }
+  - { name: Google News (org query), type: rss,
+      url: "https://news.google.com/rss/search?q=%22ORG_NAME%22&hl=en-US&gl=US&ceid=US:en",
+      verify: true }  # ORG_NAME is replaced from settings.yaml org.name at runtime
