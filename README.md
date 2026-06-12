@@ -16,52 +16,46 @@ Full background in `docs/Implementation_Plan.docx`.
 
 ### Phase A — INPUTS (data capture & ingestion) · Jun 12–17
 
-| Status | Task | Owner |
-|---|---|---|
-| Done | RSS ingestion pipeline (22 sources, all 6 areas) | W/F |
-| Done | SQLite store, dedup, source-health logging | W/F |
-| Done | Google News fallback queries for competitor monitoring | W |
-| Open | Fix remaining quiet feeds (Rock Health, CDC, WHO, SFBJ, FL DOH) — `python scripts/verify_sources.py` | W |
-| Open | Yutori access decision (subscription vs. API) — question to Jake | C |
-| Open | Integrate Yutori Scouting API in `src/ingest/yutori.py` (replaces stub) | W |
+| Status | Task |
+|---|---|
+| Done | RSS ingestion pipeline (22 sources, all 6 areas) | 
+| Done | SQLite store, dedup, source-health logging |
+| Done | Google News fallback queries for competitor monitoring |
+| Open | Fix remaining quiet feeds (Rock Health, CDC, WHO, SFBJ, FL DOH) — `python scripts/verify_sources.py` |
+| Done | Yutori access decision (subscription vs. API) — question to Jake |
+| Open | Integrate Yutori Scouting API in `src/ingest/yutori.py` (replaces stub) |
 
 **🚩 GATE G1 — Jun 18 review call:** all six areas ingesting reliably; Yutori access approved or explicitly deferred.
 
 ### Phase B — DIGESTION (prioritization & calibration) · Jun 15–24
 
-| Status | Task | Owner |
-|---|---|---|
-| Done | Composite scoring engine (source × category × LLM relevance, threshold 55) | W/F |
-| Done | Gemini scoring integration (free tier) + score report tool | F |
-| Open | Daily calibration runs: `python run_briefing.py --dry-run --no-yutori` + `python scripts/score_report.py` | F |
-| Open | Tune `config/weights.yaml` from team feedback (source weights, threshold, keywords) | F/W |
-| Open | Confirm competitor watchlist with leadership | C |
+| Status | Task |
+|---|---|
+| Open | Composite scoring engine (source × category × LLM relevance, threshold 55) |
+| Open | Gemini scoring integration (free tier) + score report tool
+| Open | Daily calibration runs: `python run_briefing.py --dry-run --no-yutori` + `python scripts/score_report.py` |
+| Open | Tune `config/weights.yaml` from team feedback (source weights, threshold, keywords) |
+| Open | Confirm competitor watchlist with leadership | 
 
 **🚩 GATE G2 — Jun 24:** team agrees the top stories are the right stories for 3 consecutive days.
 
 ### Phase C — OUTPUT (briefing & delivery) · Jun 22 – Jul 1
 
-| Status | Task | Owner |
-|---|---|---|
-| Done | Executive summary synthesis + HTML email template | W/F |
-| Open | Gmail App Password setup; first real send to project team only | F |
-| Open | GitHub Actions secrets + scheduled daily run (workflow already in repo) | W |
-| Open | 5 consecutive automated dry-run deliveries reviewed by team | All |
+| Status | Task |
+|---|---|
+| Done | Executive summary synthesis + HTML email template |
+| Open | Gmail App Password setup; first real send to project team only |
+| Open | GitHub Actions secrets + scheduled daily run (workflow already in repo) |
+| Open | 5 consecutive automated dry-run deliveries reviewed by team |
 
 **🚩 GATE G3 — Jun 30:** five clean automated runs; format approved by S&T leadership.
 
 ### Go-Live · week of Jul 6
 
-| Status | Task | Owner |
+| Status | Task |
 |---|---|---|
-| Open | Switch delivery to executive distribution list | C |
-| Open | Leadership sign-off (🚩 GATE G4) | C |
-
-### Beyond MVP (post Jul 6)
-
-Deduplication/clustering · cross-source validation boost · Yutori Research API deep-dives
-on high-priority findings ($0.35/task) · executive feedback loop · vector retrieval if
-volume requires · local model hosting (Mac Mini, C).
+| Open | Switch delivery to executive distribution list |
+| Open | Leadership sign-off (🚩 GATE G4) |
 
 ---
 
