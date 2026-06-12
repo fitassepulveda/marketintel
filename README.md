@@ -7,11 +7,69 @@ Public Health & Geopolitical Risk, and Reputation & Media Monitoring.
 **Pipeline:** RSS + Yutori ingestion → SQLite store with dedup → composite scoring
 (source weight × category weight × LLM relevance) → LLM synthesis → HTML email.
 
+---
+
+## Work Plan
+
+Status date: **June 12, 2026**. Owners: **W** = William, **F** = Fernando, **C** = Christoph.
+Full background in `docs/Implementation_Plan.docx`.
+
+### Phase A — INPUTS (data capture & ingestion) · Jun 12–17
+
+| Status | Task | Owner |
+|---|---|---|
+| Done | RSS ingestion pipeline (22 sources, all 6 areas) | W/F |
+| Done | SQLite store, dedup, source-health logging | W/F |
+| Done | Google News fallback queries for competitor monitoring | W |
+| Open | Fix remaining quiet feeds (Rock Health, CDC, WHO, SFBJ, FL DOH) — `python scripts/verify_sources.py` | W |
+| Open | Yutori access decision (subscription vs. API) — question to Jake | C |
+| Open | Integrate Yutori Scouting API in `src/ingest/yutori.py` (replaces stub) | W |
+
+**🚩 GATE G1 — Jun 18 review call:** all six areas ingesting reliably; Yutori access approved or explicitly deferred.
+
+### Phase B — DIGESTION (prioritization & calibration) · Jun 15–24
+
+| Status | Task | Owner |
+|---|---|---|
+| Done | Composite scoring engine (source × category × LLM relevance, threshold 55) | W/F |
+| Done | Gemini scoring integration (free tier) + score report tool | F |
+| Open | Daily calibration runs: `python run_briefing.py --dry-run --no-yutori` + `python scripts/score_report.py` | F |
+| Open | Tune `config/weights.yaml` from team feedback (source weights, threshold, keywords) | F/W |
+| Open | Confirm competitor watchlist with leadership | C |
+
+**🚩 GATE G2 — Jun 24:** team agrees the top stories are the right stories for 3 consecutive days.
+
+### Phase C — OUTPUT (briefing & delivery) · Jun 22 – Jul 1
+
+| Status | Task | Owner |
+|---|---|---|
+| Done | Executive summary synthesis + HTML email template | W/F |
+| Open | Gmail App Password setup; first real send to project team only | F |
+| Open | GitHub Actions secrets + scheduled daily run (workflow already in repo) | W |
+| Open | 5 consecutive automated dry-run deliveries reviewed by team | All |
+
+**🚩 GATE G3 — Jun 30:** five clean automated runs; format approved by S&T leadership.
+
+### Go-Live · week of Jul 6
+
+| Status | Task | Owner |
+|---|---|---|
+| Open | Switch delivery to executive distribution list | C |
+| Open | Leadership sign-off (🚩 GATE G4) | C |
+
+### Beyond MVP (post Jul 6)
+
+Deduplication/clustering · cross-source validation boost · Yutori Research API deep-dives
+on high-priority findings ($0.35/task) · executive feedback loop · vector retrieval if
+volume requires · local model hosting (Mac Mini, C).
+
+---
+
 ## Setup (5 minutes)
 
 ```bash
-git clone <repo-url> && cd market-intel-platform
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+git clone https://github.com/fitassepulveda/marketintel.git && cd marketintel
+python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env    # then fill in your keys (see below)
 ```
@@ -20,56 +78,45 @@ Required keys in `.env`:
 
 | Variable | Where to get it |
 |---|---|
-| `ANTHROPIC_API_KEY` | console.anthropic.com |
-| `YUTORI_API_KEY` | Yutori account (optional until procured — use `--no-yutori`) |
+| `GEMINI_API_KEY` | aistudio.google.com (free tier — default provider) |
+| `ANTHROPIC_API_KEY` | console.anthropic.com (only if `llm.provider: anthropic`) |
+| `YUTORI_API_KEY` | platform.yutori.com (pending procurement — use `--no-yutori`) |
 | `SMTP_USER` / `SMTP_PASS` | Gmail address + App Password (Google Account → Security → 2-Step Verification → App passwords) |
 | `EMAIL_TO` | comma-separated recipients |
 
 ## Running
 
 ```bash
-# 1. Verify the RSS feed URLs (do this first — some are best guesses)
-python scripts/verify_sources.py
-
-# 2. Test ingestion only (no API keys needed beyond nothing)
-python run_briefing.py --dry-run --no-yutori --no-llm
-
-# 3. Full dry run (needs ANTHROPIC_API_KEY): saves briefing to data/briefings/, doesn't email
-python run_briefing.py --dry-run --no-yutori
-
-# 4. Real run
-python run_briefing.py
+python scripts/verify_sources.py                       # check all RSS feed URLs
+python run_briefing.py --dry-run --no-yutori --no-llm  # free ingestion test
+python run_briefing.py --dry-run --no-yutori           # full dry run -> data/briefings/
+python scripts/score_report.py                         # why each story ranked where it did
+python run_briefing.py                                 # real run (sends email)
 ```
 
 ## Scheduling the daily run
 
-**Option A — GitHub Actions (recommended):** `.github/workflows/daily-briefing.yml` runs the
-pipeline in the cloud every weekday morning. Add the `.env` values as repository secrets
+**Option A — GitHub Actions (recommended):** `.github/workflows/daily-briefing.yml` runs every
+weekday morning in the cloud. Add the `.env` values as repository secrets
 (Settings → Secrets and variables → Actions). No computer needs to be on.
 
 **Option B — local cron (macOS/Linux):**
 ```
-0 7 * * 1-5 cd /path/to/market-intel-platform && .venv/bin/python run_briefing.py
+0 7 * * 1-5 cd /path/to/marketintel && .venv/bin/python run_briefing.py
 ```
-
-## Project status & roadmap
-
-See `docs/Implementation_Plan.docx` for the full phased plan. Current state:
-
-- [x] Repo scaffold, configs, pipeline skeleton
-- [ ] 1.1 Verify all RSS feeds (`scripts/verify_sources.py`), fix URLs in `config/sources.yaml` 
-- [ ] 1.3 Replace the Yutori adapter stub (`src/ingest/yutori.py`) with the real API contract (To be reviewed on June 18th)
-- [ ] 2.6 Calibration: run daily with `--dry-run`, tune `config/weights.yaml` against feedback
-- [ ] 3.5 Dry-run delivery to project team for ~5 business days
-- [ ] 3.6 Go live to executive distribution list
 
 ## Tuning
 
 All scoring behavior lives in `config/weights.yaml` (category/source weights, composite mix,
-threshold, keyword boosts) and `config/settings.yaml` (org profile, key questions, models,
-lookback window). No code changes needed to retune.
+threshold, keyword boosts) and `config/settings.yaml` (org profile, key questions, LLM
+provider/models, lookback window). No code changes needed to retune.
 
 ## Working on this repo with Claude Code
 
-`CLAUDE.md` gives Claude Code full project context. Open a terminal in the repo and run
-`claude`, then ask for a task, e.g. "implement task 1.3 — integrate the real Yutori API".
+`CLAUDE.md` gives Claude Code full project context. Open a terminal in the repo, run
+`claude`, and ask for a task, e.g. "implement the Yutori Scouting API in src/ingest/yutori.py".
+
+## Team workflow
+
+`git pull` before you start · commit small, push often · never commit `.env` or API keys ·
+weights changes get a one-line rationale in the commit message.
