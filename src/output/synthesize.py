@@ -2,7 +2,7 @@
 import json
 import logging
 
-import anthropic
+from src.llm_client import LLMClient, strip_fences
 
 log = logging.getLogger("output.synthesize")
 
@@ -25,7 +25,7 @@ Merge duplicate/related items into a single story. Order stories by importance.
 Be concrete, executive-ready, and concise."""
 
 
-def build_briefing(client: anthropic.Anthropic, model: str, max_tokens: int, org: dict,
+def build_briefing(client: LLMClient, model: str, max_tokens: int, org: dict,
                    key_questions: dict, articles: list[dict]) -> dict:
     items_txt = "\n\n".join(
         f'[{i}] area={a["area"]} | score={a["composite_score"]} | source={a["source"]}\n'
@@ -39,11 +39,5 @@ def build_briefing(client: anthropic.Anthropic, model: str, max_tokens: int, org
         f"Organization: {org['name']} — {org['description']} Region: {org['region']}\n\n"
         f"Key questions by area:\n{kq_txt}\n\nToday's top-ranked items:\n{items_txt}"
     )
-    msg = client.messages.create(
-        model=model, max_tokens=max_tokens, system=SYSTEM,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = msg.content[0].text.strip()
-    if text.startswith("```"):
-        text = text.strip("`").lstrip("json").strip()
+    text = strip_fences(client.complete(model, SYSTEM, prompt, max_tokens=max_tokens))
     return json.loads(text)

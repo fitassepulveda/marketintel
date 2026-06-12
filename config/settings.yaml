@@ -37,10 +37,15 @@ briefing:
   subject_prefix: "Market Intelligence Briefing"
 
 llm:
-  # Cheap+fast model for per-item relevance scoring
-  scoring_model: "claude-haiku-4-5-20251001"
-  # Higher-quality model for briefing synthesis
-  synthesis_model: "claude-sonnet-4-6"
+  # "gemini" (free tier: aistudio.google.com) or "anthropic" (console.anthropic.com)
+  provider: "gemini"
+  models:
+    gemini:
+      scoring: "gemini-2.5-flash"      # free tier: 250 requests/day, 10/min
+      synthesis: "gemini-2.5-flash"
+    anthropic:
+      scoring: "claude-haiku-4-5-20251001"
+      synthesis: "claude-sonnet-4-6"
   max_tokens_synthesis: 4000
 
 yutori:

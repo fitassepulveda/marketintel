@@ -29,6 +29,8 @@ Entry point: `run_briefing.py`. Flags: `--dry-run`, `--no-yutori`, `--no-llm`.
 ## Code map
 
 - `src/config.py` — loads `config/*.yaml` + `.env`
+- `src/llm_client.py` — provider-agnostic LLM wrapper (`gemini` free tier or `anthropic`;
+  set `llm.provider` in settings.yaml). Gemini calls are rate-paced for the free tier.
 - `src/store.py` — SQLite schema, dedup, source-health log
 - `src/ingest/rss.py` — feedparser-based ingestion (works today)
 - `src/ingest/yutori.py` — **STUB**: adapter for Yutori scraping/enrichment; replace

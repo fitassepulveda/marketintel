@@ -13,10 +13,9 @@ import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import anthropic
-
 from src import config, store
 from src.ingest import rss, yutori
+from src.llm_client import LLMClient
 from src.output import emailer, synthesize
 from src.prioritize import llm_relevance, scoring
 
@@ -57,8 +56,9 @@ def prioritize(con, cfg, client, use_llm: bool) -> list[dict]:
     to_score = rows[: weights.get("max_llm_scored_items", 60)]
 
     if use_llm:
+        models = settings["llm"]["models"][settings["llm"]["provider"]]
         scores = llm_relevance.score_batch(
-            client, settings["llm"]["scoring_model"], settings["org"],
+            client, models["scoring"], settings["org"],
             settings["key_questions"], to_score,
         )
     else:
@@ -93,15 +93,16 @@ def main():
 
     ingest(con, cfg, run_date, use_yutori=not args.no_yutori)
 
-    client = anthropic.Anthropic(api_key=config.env("ANTHROPIC_API_KEY")) if use_llm else None
+    client = LLMClient(cfg["settings"]["llm"]["provider"]) if use_llm else None
     top = prioritize(con, cfg, client, use_llm)
     if not top:
         log.warning("No items above threshold today — no briefing sent.")
         return
 
     if use_llm:
+        models = cfg["settings"]["llm"]["models"][cfg["settings"]["llm"]["provider"]]
         briefing = synthesize.build_briefing(
-            client, cfg["settings"]["llm"]["synthesis_model"],
+            client, models["synthesis"],
             cfg["settings"]["llm"]["max_tokens_synthesis"],
             cfg["settings"]["org"], cfg["settings"]["key_questions"], top,
         )

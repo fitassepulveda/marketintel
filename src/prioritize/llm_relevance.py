@@ -2,7 +2,7 @@
 import json
 import logging
 
-import anthropic
+from src.llm_client import LLMClient, strip_fences
 
 log = logging.getLogger("prioritize.llm")
 
@@ -16,7 +16,7 @@ Respond ONLY with a JSON array, one object per item, in the same order:
 [{"i": <index>, "score": <0-10>, "why": "<one sentence>"}]"""
 
 
-def score_batch(client: anthropic.Anthropic, model: str, org: dict, key_questions: dict,
+def score_batch(client: LLMClient, model: str, org: dict, key_questions: dict,
                 articles: list[dict], batch_size: int = 12) -> list[tuple[float, str]]:
     """Return [(score, rationale)] aligned with `articles`."""
     results: list[tuple[float, str]] = [(0.0, "not scored")] * len(articles)
@@ -33,13 +33,7 @@ def score_batch(client: anthropic.Anthropic, model: str, org: dict, key_question
             f"Items:\n{items_txt}"
         )
         try:
-            msg = client.messages.create(
-                model=model, max_tokens=1500, system=SYSTEM,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            text = msg.content[0].text.strip()
-            if text.startswith("```"):
-                text = text.strip("`").lstrip("json").strip()
+            text = strip_fences(client.complete(model, SYSTEM, prompt, max_tokens=1500))
             for obj in json.loads(text):
                 idx = start + int(obj["i"])
                 if start <= idx < start + len(batch):
