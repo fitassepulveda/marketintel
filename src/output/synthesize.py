@@ -1,4 +1,5 @@
 """Briefing synthesis: turn top-ranked items into the executive summary format."""
+from __future__ import annotations
 import json
 import logging
 

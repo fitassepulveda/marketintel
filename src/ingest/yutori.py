@@ -6,6 +6,7 @@ procured, replace `_call_yutori` with the real endpoint(s) per Yutori's docs.
 The rest of the pipeline only depends on the normalized dicts this module
 returns, so nothing else needs to change.
 """
+from __future__ import annotations
 import logging
 import os
 

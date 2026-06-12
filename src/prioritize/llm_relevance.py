@@ -1,4 +1,5 @@
 """LLM relevance scoring: each item scored 0-10 against its area's key question."""
+from __future__ import annotations
 import json
 import logging
 

@@ -7,6 +7,7 @@ Usage:
   python run_briefing.py --no-yutori     # skip Yutori sources (e.g., before key is procured)
   python run_briefing.py --no-llm        # skip LLM scoring/synthesis (ingestion test only)
 """
+from __future__ import annotations
 import argparse
 import json
 import logging

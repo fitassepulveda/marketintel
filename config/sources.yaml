@@ -3,52 +3,80 @@
 # type: rss    -> pulled by src/ingest/rss.py (free)
 # type: yutori -> scraped + enriched by src/ingest/yutori.py (paid, use sparingly)
 #
-# verify: true means the feed URL is a best guess and MUST be checked with:
-#   python scripts/verify_sources.py
-# (Phase 1, task 1.1 of the implementation plan)
+# verify: true  -> feed URL could not be confirmed from the build environment;
+#                  check with: python scripts/verify_sources.py
+# Feeds without the flag were verified live on 2026-06-12 (returned valid RSS/Atom).
+#
+# Sites with NO public RSS get a free Google News "site:" query feed as a proxy
+# (headlines only, links redirect through news.google.com), plus yutori where
+# full-text scraping is worth paying for.
 
 national_policy:
-  - { name: CMS Newsroom,        type: rss,    url: "https://www.cms.gov/newsroom/rss-feeds", verify: true }
-  - { name: HHS News,            type: rss,    url: "https://www.hhs.gov/rss/news.xml", verify: true }
-  - { name: FDA Press Releases,  type: rss,    url: "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml", verify: true }
-  - { name: Healthcare Dive,     type: rss,    url: "https://www.healthcaredive.com/feeds/news/", verify: true }
-  - { name: Becker's Hospital Review, type: yutori, url: "https://www.beckershospitalreview.com" }
+  - { name: CMS Newsroom,        type: rss,    url: "https://www.cms.gov/newsroom/rss-feeds" }
+  - { name: HHS News,            type: yutori, url: "https://www.hhs.gov/about/news/index.html" }  # feed exists but blocks non-browser clients; revisit w/ scraper
+  - { name: FDA Press Releases,  type: rss,    url: "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml" }
+  - { name: Healthcare Dive,     type: rss,    url: "https://www.healthcaredive.com/feeds/news/" }
+  - { name: Becker's Hospital Review, type: yutori, url: "https://www.beckershospitalreview.com" }  # /feed/ exists but Cloudflare blocks it intermittently
+  - { name: Modern Healthcare (headlines), type: rss,
+      url: "https://news.google.com/rss/search?q=site:modernhealthcare.com&hl=en-US&gl=US&ceid=US:en",
+      }
   - { name: Modern Healthcare,   type: yutori, url: "https://www.modernhealthcare.com" }  # paywalled; confirm legal access
 
 south_florida_competitive:
-  # Competitor newsrooms (no public RSS -> Yutori).
+  # Competitor newsrooms: none expose a working public RSS feed (checked 2026-06-12;
+  # Jackson/UM timed out, Cleveland Clinic /feed returns empty).
+  # Free coverage via Google News queries below; yutori for full-text enrichment.
   # NOTE: confirm/edit this watchlist with leadership (plan task 0.4).
   - { name: Baptist Health South Florida, type: yutori, url: "https://baptisthealth.net/baptist-health-news" }
   - { name: Jackson Health System,        type: yutori, url: "https://jacksonhealth.org/news" }
+  - { name: University of Miami Health System, type: yutori, url: "https://news.med.miami.edu" }
   - { name: Cleveland Clinic Florida,     type: yutori, url: "https://newsroom.clevelandclinic.org" }
   - { name: Memorial Healthcare System,   type: yutori, url: "https://www.mhs.net/news" }
   - { name: Mount Sinai Medical Center,   type: yutori, url: "https://www.msmc.com/about-us/news" }
   - { name: HCA Florida Healthcare,       type: yutori, url: "https://www.hcafloridahealthcare.com/about-us/newsroom" }
   - { name: Nicklaus Children's Hospital, type: yutori, url: "https://www.nicklauschildrens.org/about-us/news" }
-  - { name: South Florida Business Journal (Health), type: yutori, url: "https://www.bizjournals.com/southflorida/news/health-care" }
-  - { name: Miami Herald Health Care,     type: yutori, url: "https://www.miamiherald.com/news/health-care" }
+  # Free Google News monitors (headlines for every competitor, runs daily at no cost):
+  - { name: GNews - Jackson Health,   type: rss, url: "https://news.google.com/rss/search?q=%22Jackson+Health+System%22&hl=en-US&gl=US&ceid=US:en" }
+  - { name: GNews - Baptist Health SF, type: rss, url: "https://news.google.com/rss/search?q=%22Baptist+Health+South+Florida%22&hl=en-US&gl=US&ceid=US:en" }
+  - { name: GNews - UHealth Miami,    type: rss, url: "https://news.google.com/rss/search?q=%22University+of+Miami+Health%22+OR+%22UHealth%22&hl=en-US&gl=US&ceid=US:en" }
+  - { name: GNews - Cleveland Clinic FL, type: rss, url: "https://news.google.com/rss/search?q=%22Cleveland+Clinic%22+Florida&hl=en-US&gl=US&ceid=US:en" }
+  - { name: GNews - Memorial Healthcare, type: rss, url: "https://news.google.com/rss/search?q=%22Memorial+Healthcare+System%22+Florida&hl=en-US&gl=US&ceid=US:en" }
+  - { name: South Florida Business Journal (Health), type: rss,
+      url: "https://news.google.com/rss/search?q=site:bizjournals.com/southflorida+health&hl=en-US&gl=US&ceid=US:en",
+      }
+  - { name: Miami Herald Health Care, type: rss,
+      url: "https://news.google.com/rss/search?q=site:miamiherald.com+health&hl=en-US&gl=US&ceid=US:en",
+      }
 
 payer_insurance:
-  - { name: KFF Health News,     type: rss,    url: "https://kffhealthnews.org/feed/", verify: true }
-  - { name: Fierce Healthcare,   type: rss,    url: "https://www.fiercehealthcare.com/rss/xml", verify: true }
-  - { name: AHIP,                type: rss,    url: "https://www.ahip.org/feed", verify: true }
-  - { name: CMS Medicare,        type: yutori, url: "https://www.cms.gov/medicare" }
+  - { name: KFF Health News,     type: rss,    url: "https://kffhealthnews.org/feed/" }
+  - { name: Fierce Healthcare,   type: rss,    url: "https://www.fiercehealthcare.com/rss/xml" }
+  - { name: AHIP,                type: yutori, url: "https://www.ahip.org/news" }  # /feed and /news/feed both empty - no public RSS
+  - { name: CMS Medicare,        type: yutori, url: "https://www.cms.gov/medicare" }  # Medicare press releases already flow in via CMS Newsroom RSS
 
 innovation_ai:
-  - { name: STAT Health Tech,    type: rss,    url: "https://www.statnews.com/feed/", verify: true }
-  - { name: Rock Health,         type: rss,    url: "https://rockhealth.com/feed/", verify: true }
-  - { name: Healthcare IT News,  type: rss,    url: "https://www.healthcareitnews.com/home/feed", verify: true }
+  - { name: STAT Health Tech,    type: rss,    url: "https://www.statnews.com/category/health-tech/feed/" }  # category feed - more targeted than site-wide /feed/
+  - { name: Rock Health,         type: rss,    url: "https://rockhealth.com/feed/" }
+  - { name: Healthcare IT News (headlines), type: rss,
+      url: "https://news.google.com/rss/search?q=site:healthcareitnews.com&hl=en-US&gl=US&ceid=US:en",
+      }
   - { name: HIMSS,               type: yutori, url: "https://www.himss.org/news" }
 
 public_health_risk:
-  - { name: CDC Newsroom,        type: rss,    url: "https://tools.cdc.gov/api/v2/resources/media/132608.rss", verify: true }
-  - { name: WHO News,            type: rss,    url: "https://www.who.int/rss-feeds/news-english.xml", verify: true }
-  - { name: NOAA NHC Atlantic,   type: rss,    url: "https://www.nhc.noaa.gov/index-at.xml", verify: true }
-  - { name: Florida Dept of Health, type: yutori, url: "https://www.floridahealth.gov/newsroom" }
+  - { name: CDC Newsroom,        type: rss,    url: "https://tools.cdc.gov/api/v2/resources/media/132608.rss" }
+      # WARNING: feed is live but lastBuildDate is Aug 2023 - may be abandoned.
+      # If verify_sources shows no recent items, browse https://tools.cdc.gov/podcasts/rss.asp for a current feed ID.
+  - { name: WHO News,            type: rss,    url: "https://www.who.int/rss-feeds/news-english.xml" }
+  - { name: NOAA NHC Atlantic,   type: rss,    url: "https://www.nhc.noaa.gov/index-at.xml" }  # quiet outside active storms - 1 placeholder item off-season is normal
+  - { name: Florida Dept of Health, type: rss, url: "https://www.floridahealth.gov/feed/" }  # site moved to WordPress - feed verified live
 
 reputation_media:
-  - { name: Miami Herald,            type: yutori, url: "https://www.miamiherald.com" }
-  - { name: South Florida Sun Sentinel, type: yutori, url: "https://www.sun-sentinel.com" }
+  - { name: Miami Herald (headlines), type: rss,
+      url: "https://news.google.com/rss/search?q=site:miamiherald.com&hl=en-US&gl=US&ceid=US:en",
+      }
+  - { name: South Florida Sun Sentinel, type: yutori, url: "https://www.sun-sentinel.com" }  # /feed/ returns no entries - bot-blocked
   - { name: Google News (org query), type: rss,
       url: "https://news.google.com/rss/search?q=%22ORG_NAME%22&hl=en-US&gl=US&ceid=US:en",
-      verify: true }  # ORG_NAME is replaced from settings.yaml org.name at runtime
+      }
+  # LinkedIn News: no RSS feed exists and scraping violates LinkedIn ToS.
+  # Options: manual monitoring, or LinkedIn's official API (requires partnership approval).

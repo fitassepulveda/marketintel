@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import feedparser  # noqa: E402
 
 from src import config  # noqa: E402
+from src.ingest.rss import USER_AGENT  # noqa: E402
 
 
 def main():
@@ -21,7 +22,7 @@ def main():
         for s in sources:
             if s.get("type") != "rss":
                 continue
-            feed = feedparser.parse(s["url"])
+            feed = feedparser.parse(s["url"], agent=USER_AGENT)
             entries = len(feed.entries)
             if entries > 0:
                 ok += 1
