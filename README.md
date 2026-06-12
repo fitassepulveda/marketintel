@@ -57,8 +57,8 @@ pipeline in the cloud every weekday morning. Add the `.env` values as repository
 See `docs/Implementation_Plan.docx` for the full phased plan. Current state:
 
 - [x] Repo scaffold, configs, pipeline skeleton
-- [ ] 1.1 Verify all RSS feeds (`scripts/verify_sources.py`), fix URLs in `config/sources.yaml`
-- [ ] 1.3 Replace the Yutori adapter stub (`src/ingest/yutori.py`) with the real API contract
+- [ ] 1.1 Verify all RSS feeds (`scripts/verify_sources.py`), fix URLs in `config/sources.yaml` 
+- [ ] 1.3 Replace the Yutori adapter stub (`src/ingest/yutori.py`) with the real API contract (To be reviewed on June 18th)
 - [ ] 2.6 Calibration: run daily with `--dry-run`, tune `config/weights.yaml` against feedback
 - [ ] 3.5 Dry-run delivery to project team for ~5 business days
 - [ ] 3.6 Go live to executive distribution list

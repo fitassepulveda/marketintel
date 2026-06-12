@@ -1,4 +1,5 @@
 """RSS ingestion — free, covers all sources with type: rss."""
+from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timedelta, timezone
@@ -7,13 +8,20 @@ import feedparser
 
 log = logging.getLogger("ingest.rss")
 
+# Some sites (HHS, Tribune papers) serve an HTML block page to bot-like
+# user agents, which feedparser chokes on ("mismatched tag"). Use a browser UA.
+USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
+
 
 def fetch_feed(source: dict, area: str, lookback_hours: int) -> tuple[list[dict], str | None]:
     """Pull one RSS feed. Returns (items, error)."""
     items, error = [], None
     cutoff = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
     try:
-        feed = feedparser.parse(source["url"])
+        feed = feedparser.parse(source["url"], agent=USER_AGENT)
         if feed.bozo and not feed.entries:
             error = f"feed parse error: {getattr(feed, 'bozo_exception', 'unknown')}"
         for e in feed.entries:
