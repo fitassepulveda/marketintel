@@ -53,7 +53,14 @@ class LLMClient:
             json={
                 "system_instruction": {"parts": [{"text": system}]},
                 "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                "generationConfig": {"maxOutputTokens": max_tokens},
+                "generationConfig": {
+                    "maxOutputTokens": max_tokens,
+                    # Force strict JSON output (both our prompts expect JSON)
+                    "responseMimeType": "application/json",
+                    # Disable "thinking" so reasoning tokens don't eat the output
+                    # budget and truncate the JSON mid-string
+                    "thinkingConfig": {"thinkingBudget": 0},
+                },
             },
             timeout=120,
         )
