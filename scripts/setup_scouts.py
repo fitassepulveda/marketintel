@@ -161,18 +161,28 @@ def main():
         if source is None:
             print(f"SKIP  '{name}': not a yutori-type source in sources.yaml")
             continue
-        if store.get_scout(con, name) and not args.force:
-            existing = store.get_scout(con, name)
+        existing = store.get_scout(con, name)
+        if existing and not args.force:
             print(f"SKIP  '{name}': already has scout {existing['scout_id']} (use --force to recreate)")
             continue
 
         query = build_query(source)
-        first_run = datetime.fromtimestamp(start_ts, tz=timezone.utc).astimezone()
         if args.dry_run:
             print(f"DRY   would create scout for '{name}' [{area}] every {interval}s, "
                   f"first run ~{scan_hour}:00 {tz} (ts={start_ts})")
+            if existing:
+                print(f"      (would first archive old scout {existing['scout_id']} so it can't keep billing)")
             print(f"      query: {query}")
             continue
+
+        # --force on an existing source: archive the OLD scout first so it doesn't keep
+        # running (and charging $0.35/scan) as an orphan once we point at the new one.
+        if existing:
+            try:
+                yutori.stop_scout(con, y, name)
+                print(f"STOP  '{name}': archived old scout {existing['scout_id']} (no more charges from it)")
+            except Exception as exc:
+                print(f"WARN  '{name}': could not archive old scout {existing['scout_id']} ({exc})")
 
         result = create_scout(base_url, headers, query, interval, tz, start_ts)
         store.upsert_scout(con, name, area, result["id"], query)
