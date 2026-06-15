@@ -65,6 +65,9 @@ yutori:
   page_size: 20
   max_update_pages: 5
   timeout_seconds: 60
+  # When a scout item has no publish date, fetch the article page and read it from
+  # the page metadata (article:published_time / JSON-LD datePublished).
+  enrich_publish_dates: true
   # If true, a scout is archived after its first pull (one-shot, for testing). Set
   # false for production so each scout keeps running on its daily schedule and the
   # briefing gets fresh competitor news every morning.

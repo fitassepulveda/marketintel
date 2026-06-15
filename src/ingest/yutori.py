@@ -18,6 +18,7 @@ which is how we limit scouting to a chosen subset of sources.
 from __future__ import annotations
 import logging
 import os
+import re
 from datetime import datetime, timezone
 
 import requests
@@ -27,6 +28,38 @@ from .. import store
 log = logging.getLogger("ingest.yutori")
 
 UPDATES_PATH = "/scouting/tasks/{scout_id}/updates"
+_BROWSER_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
+# Patterns for the publish date in a page's metadata (most newsrooms expose one).
+_PUB_DATE_PATTERNS = [
+    r'<meta[^>]+(?:property|name)=["\'](?:article:published_time|og:published_time|'
+    r'datePublished|publishdate|pubdate|date|DC\.date\.issued)["\'][^>]+content=["\']([^"\']+)["\']',
+    r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']'
+    r'(?:article:published_time|og:published_time)["\']',
+    r'"datePublished"\s*:\s*"([^"]+)"',
+    r'<time[^>]+datetime=["\']([^"\']+)["\']',
+]
+
+
+def _extract_published_date(html: str) -> str:
+    for pat in _PUB_DATE_PATTERNS:
+        m = re.search(pat, html or "", re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+    return ""
+
+
+def _fetch_published_date(url: str, timeout: int) -> str:
+    """Best-effort: fetch an article page and read its publish date from metadata."""
+    try:
+        resp = requests.get(url, headers={"User-Agent": _BROWSER_UA}, timeout=timeout)
+        if resp.ok:
+            return _extract_published_date(resp.text)
+    except Exception as exc:
+        log.debug("date enrich failed for %s: %s", url, exc)
+    return ""
 
 
 def _headers() -> dict:
@@ -178,6 +211,13 @@ def fetch_source(con, source: dict, area: str, yutori_cfg: dict) -> tuple[list[d
     for upd in updates:
         items.extend(_normalize_update(upd, source, area))
         newest_ts = max(newest_ts, _ts_seconds(upd.get("timestamp", 0)))
+
+    # Yutori often can't return a publish date. For any item still missing one, read
+    # it from the article page's metadata (article:published_time / JSON-LD).
+    if yutori_cfg.get("enrich_publish_dates", True):
+        for it in items:
+            if not it.get("published") and it.get("url"):
+                it["published"] = _fetch_published_date(it["url"], yutori_cfg.get("timeout_seconds", 60))
 
     if newest_ts > scout["last_update_ts"]:
         store.set_scout_cursor(con, source["name"], newest_ts)

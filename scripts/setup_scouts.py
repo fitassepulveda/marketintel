@@ -55,7 +55,8 @@ def build_query(source: dict) -> str:
         "new or expanded service lines and clinical programs; partnerships, mergers, "
         "or acquisitions; major executive or leadership changes; and notable awards, "
         "rankings, or reputational events. Focus on material competitive developments, "
-        "not routine community PR."
+        "not routine community PR. For each item, also capture the article's publication "
+        "date from the page (the dateline or byline date) as published_date in YYYY-MM-DD."
     )
 
 

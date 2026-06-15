@@ -53,6 +53,9 @@ class LLMClient:
             "maxOutputTokens": max_tokens,
             # Force strict JSON output (both our prompts expect JSON)
             "responseMimeType": "application/json",
+            # temperature 0 = deterministic: the same article gets the same relevance
+            # score every run, so rankings are consistent rather than reshuffling.
+            "temperature": 0,
         }
         # thinkingConfig only exists on 2.5-series models; sending it to others 400s.
         if "2.5" in model:
