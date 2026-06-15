@@ -4,8 +4,58 @@ AI-driven daily executive briefing covering six intelligence areas: National Hea
 Policy & Industry, South Florida Competitive Intel, Payer & Insurance, Innovation & AI,
 Public Health & Geopolitical Risk, and Reputation & Media Monitoring.
 
-**Pipeline:** RSS + Yutori ingestion → SQLite store with dedup → composite scoring
-(source weight × category weight × LLM relevance) → LLM synthesis → HTML email.
+**Pipeline:** RSS + Yutori-scout ingestion → SQLite store → 3-day publish-date filter →
+LLM relevance scoring (vs. UHealth) → semantic dedup → LLM synthesis → HTML digest email.
+
+---
+
+## How it works & why (build notes)
+
+Step-by-step of what the pipeline does each run, and the reasoning behind each choice.
+
+1. **Ingest (`src/ingest/`).** Free RSS/Google-News feeds cover most sources. Competitor
+   health systems (Baptist, Jackson, …) have no usable RSS, so they're monitored by
+   **Yutori "scouts"** — agents that read the newsroom pages and return structured findings.
+   Everything lands in one SQLite file (`data/intel.db`), deduped on exact URL at write time.
+
+2. **3-day window by *publish* date (`run_briefing._is_recent`).** We keep only stories
+   published in the last 72h — so a Monday run covers the weekend back to Friday. We filter on
+   the article's *publish* date, not when we fetched it, so an old story a scout surfaces today
+   can't sneak in. Undated items fall back to fetch time (so a good story is never dropped just
+   for lacking a date).
+
+3. **Relevance scoring (`src/prioritize/`).** Every recent article is scored 0–10 by the LLM
+   (Gemini) for relevance to UHealth, judged against its intelligence area's key question.
+   We deliberately use **pure LLM relevance** (composite weights in `weights.yaml`): keyword
+   rules were removed because they were blunt — they surfaced local fluff and missed strong
+   stories with unexpected wording. Scoring runs at **temperature 0** so the same article gets
+   the same score every run (consistent rankings). A **per-source cap** (`max_per_source`)
+   stops a high-volume feed from flooding the pool; competitor sources are exempt
+   (`uncapped_sources`) so their coverage is never trimmed.
+
+4. **Semantic dedup (`scoring.semantic_dedupe`).** The same event often arrives from several
+   feeds with different wording. We embed each story (Gemini embeddings) and merge ones whose
+   *meaning* is near-identical (cosine ≥ `dedup_cosine_similarity`) — keeping the higher-scored
+   copy. This generalizes far better than matching words; a keyword fallback only kicks in if
+   the embedding call fails.
+
+5. **Synthesis (`src/output/synthesize.py`).** The top stories go to the LLM, which writes the
+   per-story narrative (what happened / why it matters to UHealth / exposure / what to watch).
+   It's told to produce one story per item (dedup already happened upstream).
+
+6. **Digest email (`src/output/emailer.py`).** Top N stories rendered as HTML with an
+   intelligence-area tag + source up top and a larger headline. Publish dates come from Yutori
+   first, else from reading the article page's metadata, else shown as "—". If *nothing* clears
+   the threshold, a short **quiet-day note** is sent anyway, so silence never looks like a
+   broken pipeline.
+
+7. **Scheduling.** Scouts scan once daily at ~6am ET (set at scout creation). The briefing runs
+   ~7am ET weekdays via GitHub Actions (`.github/workflows/daily-briefing.yml`), so the fresh
+   scan precedes the email. Secrets live in GitHub (never in the repo); dedup memory persists
+   between runs via the Actions cache.
+
+**Cost:** Gemini ≈ a few cents/run (scoring + synthesis + embeddings). Yutori = **$0.35 per
+scout-scan**, so each competitor scout ≈ $10.50/month at one daily scan. RSS/Google-News is free.
 
 ---
 

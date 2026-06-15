@@ -187,6 +187,29 @@ def render_digest_html(stories: list[dict], date_str: str, org_short: str,
     return "".join(parts)
 
 
+def render_quiet_html(date_str: str, org_name: str, lookback_hours: int,
+                      failing: list[str] | None = None) -> str:
+    """Short 'nothing material today' note — sent so a quiet day isn't silent."""
+    days = max(1, round(lookback_hours / 24))
+    parts = [
+        '<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;'
+        'color:#222;font-size:14px;line-height:1.5">',
+        f'<p style="color:#1F3864;font-size:15px;font-weight:bold;margin:0 0 8px">'
+        f'Market Intelligence Briefing — {escape(date_str)}</p>',
+        f'<p>No developments cleared the relevance threshold over the past {days} days — '
+        f'nothing material to report this morning for {escape(org_name)}.</p>',
+        '<p style="color:#666;font-size:12px">This is an automated note confirming the '
+        'briefing ran; it is not a delivery error.</p>',
+    ]
+    if failing:
+        parts.append(
+            '<p style="color:#A33;font-size:12px">Note: these sources have returned nothing '
+            f'for 2+ days, so coverage may be incomplete — {escape(", ".join(failing))}.</p>'
+        )
+    parts.append("</div>")
+    return "".join(parts)
+
+
 def send(body: str, subject: str, smtp_cfg: dict, subtype: str = "html"):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject

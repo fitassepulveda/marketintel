@@ -158,6 +158,30 @@ def prioritize(con, cfg, client, use_llm: bool) -> list[dict]:
     return final
 
 
+def _send_html(settings, subject: str, body_html: str, dry_run: bool,
+               run_date: str, label: str = "Digest") -> bool:
+    """Send an HTML email, respecting --dry-run and SMTP readiness. Returns True if sent."""
+    recipients = settings["briefing"].get("digest_recipients", [])
+    smtp_ready = all(config.env(k, required=False) for k in
+                     ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "EMAIL_FROM"))
+    if dry_run:
+        log.info("Dry run: %s saved to data/briefings/ (not sent).", label)
+        return False
+    if not (recipients and smtp_ready):
+        log.warning("%s saved but NOT sent (set SMTP_* + EMAIL_FROM in .env and "
+                    "digest_recipients in settings.yaml).", label)
+        return False
+    emailer.send(
+        body_html, subject,
+        {"host": config.env("SMTP_HOST"), "port": config.env("SMTP_PORT"),
+         "user": config.env("SMTP_USER"), "password": config.env("SMTP_PASS"),
+         "from": config.env("EMAIL_FROM"), "to": recipients},
+        subtype="html",
+    )
+    log.info("%s emailed to %s", label, ", ".join(recipients))
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="don't send email; save HTML locally")
@@ -174,8 +198,23 @@ def main():
 
     client = LLMClient(cfg["settings"]["llm"]["provider"]) if use_llm else None
     top = prioritize(con, cfg, client, use_llm)
+
+    settings = cfg["settings"]
+    date_h = datetime.now().strftime("%A, %B %d, %Y")
+    out_dir = config.DATA_DIR / "briefings"
+    out_dir.mkdir(exist_ok=True)
+
+    # Quiet day: nothing cleared the threshold. Still send a short note so an empty
+    # news day is never indistinguishable from a broken pipeline.
     if not top:
-        log.warning("No items above threshold today — no briefing sent.")
+        log.info("No stories cleared the threshold — sending a quiet-day note.")
+        quiet_html = emailer.render_quiet_html(
+            date_h, settings["org"]["name"], settings["briefing"]["lookback_hours"],
+            store.failing_sources(con),
+        )
+        (out_dir / f"{run_date}_digest.html").write_text(quiet_html, encoding="utf-8")
+        _send_html(settings, f'{settings["briefing"]["subject_prefix"]} — {date_h} (quiet day)',
+                   quiet_html, args.dry_run, run_date, label="Quiet-day note")
         return
 
     if use_llm:
@@ -207,8 +246,6 @@ def main():
             "coverage_label": f'{a["source"]} coverage',
         })
 
-    settings = cfg["settings"]
-    date_h = datetime.now().strftime("%A, %B %d, %Y")
     html = emailer.render_html(briefing, date_h, settings["org"]["name"], store.failing_sources(con))
 
     # Email digest for the top N stories (HTML, with larger titles). Captured/Published
@@ -218,34 +255,13 @@ def main():
     digest = emailer.render_digest(briefing["stories"], date_h, org_short, articles=top, top_n=top_n)
     digest_html = emailer.render_digest_html(briefing["stories"], date_h, org_short, articles=top, top_n=top_n)
 
-    out_dir = config.DATA_DIR / "briefings"
-    out_dir.mkdir(exist_ok=True)
     (out_dir / f"{run_date}.html").write_text(html, encoding="utf-8")
     (out_dir / f"{run_date}.json").write_text(json.dumps(briefing, indent=2), encoding="utf-8")
     (out_dir / f"{run_date}_digest.txt").write_text(digest, encoding="utf-8")
     (out_dir / f"{run_date}_digest.html").write_text(digest_html, encoding="utf-8")
 
-    recipients = settings["briefing"].get("digest_recipients", [])
-    smtp_ready = all(config.env(k, required=False) for k in
-                     ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "EMAIL_FROM"))
-
-    sent = False
-    if args.dry_run:
-        log.info("Dry run: digest saved to data/briefings/%s_digest.txt (not sent)", run_date)
-    elif not (recipients and smtp_ready):
-        log.warning("Digest saved to data/briefings/%s_digest.txt but NOT sent "
-                    "(set SMTP_* + EMAIL_FROM in .env and digest_recipients in settings.yaml).",
-                    run_date)
-    else:
-        emailer.send(
-            digest_html, f'{settings["briefing"]["subject_prefix"]} — {date_h}',
-            {"host": config.env("SMTP_HOST"), "port": config.env("SMTP_PORT"),
-             "user": config.env("SMTP_USER"), "password": config.env("SMTP_PASS"),
-             "from": config.env("EMAIL_FROM"), "to": recipients},
-            subtype="html",
-        )
-        sent = True
-        log.info("Digest emailed to %s", ", ".join(recipients))
+    sent = _send_html(settings, f'{settings["briefing"]["subject_prefix"]} — {date_h}',
+                      digest_html, args.dry_run, run_date, label="Digest")
 
     # Only consume dedup state when the briefing actually went out — a dry run or a
     # failed/skipped send must not mark stories as already-briefed.
