@@ -1,71 +1,191 @@
-"""Yutori ingestion — scraping + NLP enrichment for non-RSS sources.
+"""Yutori ingestion — competitor / non-RSS monitoring via the Scouting API.
 
-STATUS: ADAPTER STUB (plan task 1.3).
-The request/response shapes below are placeholders. When the Yutori API key is
-procured, replace `_call_yutori` with the real endpoint(s) per Yutori's docs.
-The rest of the pipeline only depends on the normalized dicts this module
-returns, so nothing else needs to change.
+How it works (plan task 1.3):
+  * A Scout is a persistent monitor created ONCE per source (see
+    scripts/setup_scouts.py). Yutori runs it on its own schedule and accumulates
+    structured findings.
+  * Each briefing run polls `GET /v1/scouting/tasks/{id}/updates` for findings
+    newer than the last one we ingested (tracked by `last_update_ts` in the
+    `scouts` table), so we never re-pay for or re-process old updates.
+  * Scouts return structured output shaped as {headline, summary, source_url}
+    (requested via `output_schema` at creation). We normalise those into the
+    same dicts the rest of the pipeline already consumes — nothing downstream
+    changes.
+
+Sources without a scout row are simply skipped (run setup_scouts.py to add one),
+which is how we limit scouting to a chosen subset of sources.
 """
 from __future__ import annotations
 import logging
 import os
+from datetime import datetime, timezone
 
 import requests
 
+from .. import store
+
 log = logging.getLogger("ingest.yutori")
 
+UPDATES_PATH = "/scouting/tasks/{scout_id}/updates"
 
-def _call_yutori(base_url: str, source: dict, max_pages: int) -> list[dict]:
-    """Placeholder for the real Yutori scrape+enrich call.
 
-    Expected to return a list of raw article dicts:
-      { url, title, summary, content, published, entities, topics, sentiment }
-    """
+def _headers() -> dict:
     api_key = os.environ.get("YUTORI_API_KEY", "")
     if not api_key:
         raise RuntimeError("YUTORI_API_KEY not set")
-
-    # TODO(plan 1.3): replace with the actual Yutori API contract.
-    resp = requests.post(
-        f"{base_url}/scrape",
-        headers={"Authorization": f"Bearer {api_key}"},
-        json={"url": source["url"], "max_pages": max_pages, "enrich": True},
-        timeout=120,
-    )
-    resp.raise_for_status()
-    return resp.json().get("articles", [])
+    return {"X-API-Key": api_key}
 
 
-def fetch_source(source: dict, area: str, yutori_cfg: dict) -> tuple[list[dict], str | None]:
-    """Scrape one non-RSS source. Returns (normalized items, error)."""
-    items, error = [], None
+def _ts_seconds(raw) -> int:
+    """Normalize a Yutori timestamp to whole seconds (it may arrive in ms)."""
     try:
-        raw = _call_yutori(yutori_cfg["base_url"], source, yutori_cfg.get("max_pages_per_source", 10))
-        for a in raw:
-            if not a.get("url") or not a.get("title"):
+        ts = int(raw)
+    except (TypeError, ValueError):
+        return 0
+    if ts > 10_000_000_000:  # larger than year 2286 in seconds => it's milliseconds
+        ts //= 1000
+    return ts
+
+
+def _get_updates(base_url: str, scout_id: str, since_ts: int,
+                 page_size: int, max_pages: int, timeout: int) -> list[dict]:
+    """Fetch scout updates with timestamp > since_ts (paginated, newest first)."""
+    url = base_url.rstrip("/") + UPDATES_PATH.format(scout_id=scout_id)
+    headers = _headers()
+    fresh: list[dict] = []
+    cursor = None
+    for _ in range(max_pages):
+        params = {"page_size": page_size}
+        if cursor:
+            params["cursor"] = cursor
+        resp = requests.get(url, headers=headers, params=params, timeout=timeout)
+        resp.raise_for_status()
+        body = resp.json()
+        updates = body.get("updates", [])
+        if not updates:
+            break
+        stop = False
+        for upd in updates:
+            if _ts_seconds(upd.get("timestamp", 0)) > since_ts:
+                fresh.append(upd)
+            else:
+                stop = True  # reached already-ingested territory
+        cursor = body.get("next_cursor")
+        if stop or not cursor:
+            break
+    return fresh
+
+
+def _normalize_update(upd: dict, source: dict, area: str) -> list[dict]:
+    """Turn one scout update into zero+ pipeline article dicts.
+
+    Prefers the structured_result array ({headline, summary, source_url}); falls
+    back to the free-text `content` + first citation when structure isn't ready.
+    """
+    items: list[dict] = []
+    # NOTE: a scout update's `timestamp` is when the scout RAN, not when the article
+    # was published — never use it as the article date. We read the real article date
+    # from the structured `published_date` field (requested in the scout schema); if
+    # the scout couldn't find one, we leave it blank rather than show a wrong date.
+    citations = [c.get("url") for c in (upd.get("citations") or []) if c.get("url")]
+
+    structured = upd.get("structured_result")
+    rows = structured if isinstance(structured, list) else ([structured] if isinstance(structured, dict) else [])
+
+    if rows:
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            link = row.get("source_url") or (citations[0] if citations else "")
+            title = (row.get("headline") or "").strip()
+            if not link or not title:
                 continue
             items.append({
-                "url": a["url"],
-                "title": a["title"],
-                "summary": (a.get("summary") or "")[:2000],
-                "content": (a.get("content") or "")[:8000],
+                "url": link,
+                "title": title,
+                "summary": (row.get("summary") or "")[:2000],
+                "content": (upd.get("content") or "")[:8000],
                 "source": source["name"],
                 "area": area,
-                "published": a.get("published", ""),
+                "published": (row.get("published_date") or "").strip(),
                 "enrichment": {
-                    "entities": a.get("entities"),
-                    "topics": a.get("topics"),
-                    "sentiment": a.get("sentiment"),
+                    "scout_update_id": upd.get("id"),
+                    "citations": citations,
                 },
             })
+    elif citations and (upd.get("content") or "").strip():
+        # No structured output yet — keep the update as a single linkable item.
+        items.append({
+            "url": citations[0],
+            "title": (upd.get("content") or "")[:160].strip(),
+            "summary": (upd.get("content") or "")[:2000],
+            "content": (upd.get("content") or "")[:8000],
+            "source": source["name"],
+            "area": area,
+            "published": "",
+            "enrichment": {"scout_update_id": upd.get("id"), "citations": citations},
+        })
+    return items
+
+
+def stop_scout(con, yutori_cfg: dict, source_name: str) -> bool:
+    """Archive a scout so it stops running (POST /done). Marks it inactive locally."""
+    scout = store.get_scout(con, source_name)
+    if scout is None:
+        return False
+    url = yutori_cfg["base_url"].rstrip("/") + f"/scouting/tasks/{scout['scout_id']}/done"
+    resp = requests.post(url, headers=_headers(), timeout=yutori_cfg.get("timeout_seconds", 60))
+    resp.raise_for_status()
+    store.set_scout_active(con, source_name, False)
+    log.info("Scout for '%s' archived (stopped running).", source_name)
+    return True
+
+
+def restart_scout(con, yutori_cfg: dict, source_name: str) -> bool:
+    """Restart a previously archived scout (POST /restart). Marks it active locally."""
+    scout = store.get_scout(con, source_name)
+    if scout is None:
+        return False
+    url = yutori_cfg["base_url"].rstrip("/") + f"/scouting/tasks/{scout['scout_id']}/restart"
+    resp = requests.post(url, headers=_headers(), timeout=yutori_cfg.get("timeout_seconds", 60))
+    resp.raise_for_status()
+    store.set_scout_active(con, source_name, True)
+    log.info("Scout for '%s' restarted.", source_name)
+    return True
+
+
+def fetch_source(con, source: dict, area: str, yutori_cfg: dict) -> tuple[list[dict], str | None]:
+    """Pull new findings for one scouted source. Returns (normalized items, error)."""
+    scout = store.get_scout(con, source["name"])
+    if scout is None:
+        return [], "no scout configured (run scripts/setup_scouts.py)"
+    if not scout["active"]:
+        return [], "scout archived/stopped (restart with: setup_scouts.py --restart)"
+
+    try:
+        updates = _get_updates(
+            yutori_cfg["base_url"], scout["scout_id"], scout["last_update_ts"],
+            yutori_cfg.get("page_size", 20),
+            yutori_cfg.get("max_update_pages", 5),
+            yutori_cfg.get("timeout_seconds", 60),
+        )
     except Exception as exc:
-        error = str(exc)
-        log.warning("Yutori %s: %s", source["name"], error)
-    return items, error
+        log.warning("Yutori %s: %s", source["name"], exc)
+        return [], str(exc)
+
+    items: list[dict] = []
+    newest_ts = scout["last_update_ts"]
+    for upd in updates:
+        items.extend(_normalize_update(upd, source, area))
+        newest_ts = max(newest_ts, _ts_seconds(upd.get("timestamp", 0)))
+
+    if newest_ts > scout["last_update_ts"]:
+        store.set_scout_cursor(con, source["name"], newest_ts)
+    return items, None
 
 
-def fetch_all(sources_by_area: dict, yutori_cfg: dict, enabled: bool = True):
-    """Yield (source, area, items, error) for every Yutori source."""
+def fetch_all(con, sources_by_area: dict, yutori_cfg: dict, enabled: bool = True):
+    """Yield (source, area, items, error) for every Yutori-type source."""
     for area, sources in sources_by_area.items():
         for source in sources:
             if source.get("type") != "yutori":
@@ -73,5 +193,5 @@ def fetch_all(sources_by_area: dict, yutori_cfg: dict, enabled: bool = True):
             if not enabled:
                 yield source, area, [], "yutori disabled (--no-yutori or missing key)"
                 continue
-            items, error = fetch_source(source, area, yutori_cfg)
+            items, error = fetch_source(con, source, area, yutori_cfg)
             yield source, area, items, error

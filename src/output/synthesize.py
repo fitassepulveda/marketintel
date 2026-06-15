@@ -16,14 +16,17 @@ with JSON:
   "stories": [
     {"title": "...", "area": "...", "source": "...", "url": "...",
      "what_happened": "1-2 sentences",
-     "why_it_matters": "1-2 sentences specific to the organization",
-     "exposure": "institutional exposure / opportunity in one sentence"}
+     "why_it_matters": "REQUIRED, never blank: 1-2 sentences on the strategic significance to the organization (refer to it by its short name) — why leadership should care",
+     "exposure": "REQUIRED: the specific institutional risk OR opportunity this creates, in one sentence (distinct from why_it_matters)",
+     "watch_next": "what to watch in the next 1-2 weeks, one sentence",
+     "coverage_label": "a short descriptive label for the source link, e.g. 'STAT reporting on pharma job shifts'"}
   ],
   "watch": ["developments to watch in coming days/weeks/months"],
   "actions": ["recommended actions or considerations"]
 }
-Merge duplicate/related items into a single story. Order stories by importance.
-Be concrete, executive-ready, and concise."""
+Produce ONE story object for EACH item provided, preserving that item's exact url.
+Do NOT drop, omit, or merge items — duplicates have already been removed upstream.
+Order stories by importance. Be concrete, executive-ready, and concise."""
 
 
 def build_briefing(client: LLMClient, model: str, max_tokens: int, org: dict,
@@ -37,7 +40,8 @@ def build_briefing(client: LLMClient, model: str, max_tokens: int, org: dict,
     )
     kq_txt = "\n".join(f"- {area}: {q}" for area, q in key_questions.items())
     prompt = (
-        f"Organization: {org['name']} — {org['description']} Region: {org['region']}\n\n"
+        f"Organization: {org['name']} (short name: {org.get('short_name', org['name'])}) — "
+        f"{org['description']} Region: {org['region']}\n\n"
         f"Key questions by area:\n{kq_txt}\n\nToday's top-ranked items:\n{items_txt}"
     )
     text = strip_fences(client.complete(model, SYSTEM, prompt, max_tokens=max_tokens))

@@ -2,12 +2,14 @@
 
 org:
   # Used in LLM prompts ("why it matters to <name>") and the Google News query.
-  name: "Healthcare Company"        # TODO: replace with the institution's real name
+  name: "University of Miami Health System"
+  short_name: "UM"                  # abbreviation used in the email digest labels
   description: >
     Academic health system in South Florida (Miami metro) with a medical school,
     hospitals, and outpatient network. Strategic focus: growth, academic medicine,
     high-value service lines, payer leverage.
   region: "South Florida (Miami-Dade, Broward, Palm Beach)"
+  timezone: "America/New_York"      # used when scheduling Yutori scouts
 
 # Key question per intelligence area — drives LLM relevance scoring and synthesis
 key_questions:
@@ -28,13 +30,19 @@ key_questions:
     Is there emerging reputation risk or public narrative risk?
 
 briefing:
-  # How far back to look for "new" items each run (hours)
-  lookback_hours: 30
-  # Max stories in the briefing body
-  max_stories: 12
+  # How far back to look for "new" items each run (hours). 72 = past 3 days, so a
+  # Monday-morning run covers everything since Friday morning (the weekend gap).
+  lookback_hours: 72
+  # Top N must-include stories the LLM ranks and we keep
+  max_stories: 5
   # Top-line takeaways count
   takeaways: 5
   subject_prefix: "Market Intelligence Briefing"
+  # Plain-text digest (current email output): how many stories, and who gets it.
+  digest_top_n: 5
+  digest_recipients:
+    - "wef28@miami.edu"
+    - "fxs1141@miami.edu"
 
 llm:
   # "gemini" (free tier: aistudio.google.com) or "anthropic" (console.anthropic.com)
@@ -49,7 +57,18 @@ llm:
   max_tokens_synthesis: 4000
 
 yutori:
-  # Placeholder endpoint — set per Yutori's actual API docs during integration (plan task 1.3)
+  # Scouting API. Auth via X-API-Key header (YUTORI_API_KEY in .env).
   base_url: "https://api.yutori.com/v1"
-  # Only scrape pages matching these recency hints, where supported
-  max_pages_per_source: 10
+  # How often each scout runs, seconds (>=1800). 86400 = daily, matches the briefing.
+  output_interval_seconds: 86400
+  # Get Updates polling per run
+  page_size: 20
+  max_update_pages: 5
+  timeout_seconds: 60
+  # If true, a scout is archived after its first pull (one-shot, for testing). Set
+  # false for production so each scout keeps running on its daily schedule and the
+  # briefing gets fresh competitor news every morning.
+  stop_after_first_update: false
+  # Local hour (in org.timezone) for each daily scout scan. New scouts are scheduled
+  # so their first run — and every run after — lands at this hour.
+  scout_scan_hour_local: 6

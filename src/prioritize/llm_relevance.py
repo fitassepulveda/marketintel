@@ -18,7 +18,7 @@ Respond ONLY with a JSON array, one object per item, in the same order:
 
 
 def score_batch(client: LLMClient, model: str, org: dict, key_questions: dict,
-                articles: list[dict], batch_size: int = 12) -> list[tuple[float, str]]:
+                articles: list[dict], batch_size: int = 15) -> list[tuple[float, str]]:
     """Return [(score, rationale)] aligned with `articles`."""
     results: list[tuple[float, str]] = [(0.0, "not scored")] * len(articles)
     for start in range(0, len(articles), batch_size):
@@ -34,7 +34,7 @@ def score_batch(client: LLMClient, model: str, org: dict, key_questions: dict,
             f"Items:\n{items_txt}"
         )
         try:
-            text = strip_fences(client.complete(model, SYSTEM, prompt, max_tokens=1500))
+            text = strip_fences(client.complete(model, SYSTEM, prompt, max_tokens=4000))
             for obj in json.loads(text):
                 idx = start + int(obj["i"])
                 if start <= idx < start + len(batch):

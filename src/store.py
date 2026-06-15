@@ -34,6 +34,15 @@ CREATE TABLE IF NOT EXISTS source_health (
     items_fetched INTEGER NOT NULL,
     error TEXT
 );
+CREATE TABLE IF NOT EXISTS scouts (
+    source TEXT PRIMARY KEY,        -- source name from sources.yaml
+    area TEXT NOT NULL,
+    scout_id TEXT NOT NULL,         -- Yutori scout UUID
+    query TEXT,
+    created_at TEXT NOT NULL,
+    last_update_ts INTEGER NOT NULL DEFAULT 0,  -- newest update timestamp already ingested
+    active INTEGER NOT NULL DEFAULT 1           -- 0 once archived (stopped scouting)
+);
 """
 
 
@@ -41,6 +50,11 @@ def connect() -> sqlite3.Connection:
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
+    # Migration: add scouts.active to DBs created before the one-shot feature.
+    cols = [r[1] for r in con.execute("PRAGMA table_info(scouts)").fetchall()]
+    if cols and "active" not in cols:
+        con.execute("ALTER TABLE scouts ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
+        con.commit()
     return con
 
 
@@ -90,6 +104,35 @@ def save_scores(con, article_id: int, llm_score: float, rationale: str, composit
 
 def mark_briefed(con, ids: list[int], date_str: str):
     con.executemany("UPDATE articles SET briefed_on=? WHERE id=?", [(date_str, i) for i in ids])
+
+
+def upsert_scout(con, source: str, area: str, scout_id: str, query: str):
+    """Record (or replace) the Yutori scout backing a source. Resets the cursor."""
+    con.execute(
+        """INSERT INTO scouts (source, area, scout_id, query, created_at, last_update_ts, active)
+           VALUES (?,?,?,?,?,0,1)
+           ON CONFLICT(source) DO UPDATE SET
+             area=excluded.area, scout_id=excluded.scout_id,
+             query=excluded.query, created_at=excluded.created_at,
+             last_update_ts=0, active=1""",
+        (source, area, scout_id, query, datetime.now(timezone.utc).isoformat()),
+    )
+
+
+def get_scout(con, source: str) -> sqlite3.Row | None:
+    return con.execute("SELECT * FROM scouts WHERE source=?", (source,)).fetchone()
+
+
+def all_scouts(con) -> list[sqlite3.Row]:
+    return con.execute("SELECT * FROM scouts").fetchall()
+
+
+def set_scout_cursor(con, source: str, last_update_ts: int):
+    con.execute("UPDATE scouts SET last_update_ts=? WHERE source=?", (last_update_ts, source))
+
+
+def set_scout_active(con, source: str, active: bool):
+    con.execute("UPDATE scouts SET active=? WHERE source=?", (1 if active else 0, source))
 
 
 def failing_sources(con, days: int = 2) -> list[str]:

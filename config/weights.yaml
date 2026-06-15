@@ -33,33 +33,64 @@ sf_competitive_factors:
   geographic_proximity: 8
   service_line_impact: 7
 
-# Composite score = weighted sum of normalized components (each 0-1)
+# Composite score = weighted sum of normalized components (each 0-1).
+# LLM relevance to UHealth dominates (80%); intelligence-area priority is a light
+# nudge (20%); source credibility is not used.
 composite:
-  source_weight: 0.2
-  category_weight: 0.3
-  llm_relevance: 0.5
+  source_weight: 0.0
+  category_weight: 0.0
+  llm_relevance: 1.0
 
 # Items scoring below this (0-100 scale) are dropped as noise
 score_threshold: 55
 
-# Max items sent to the LLM relevance scorer per run (cost control).
-# Items are pre-ranked by source+category weight and keyword hits first.
-max_llm_scored_items: 60
+# Near-duplicate filter. Two candidate stories are treated as the SAME event (and
+# only the best-scored one kept) if EITHER their headlines are at least this similar
+# (0-1), OR they share a dollar figure plus a distinctive word. Higher = MORE
+# selective on the headline test. Exact-URL dupes are always removed at ingest.
+dedup_title_similarity: 0.90
+# Also treat two stories as the same event if their headlines share at least this
+# fraction of distinctive words (catches the same story syndicated across feeds with
+# reworded titles). Lower = merges more aggressively.
+dedup_token_overlap: 0.6
 
-# Keyword pre-filter: an item containing any of these gets a pre-rank boost
-boost_keywords:
-  - merger
-  - acquisition
-  - expansion
-  - "new hospital"
-  - "medical center"
-  - reimbursement
-  - Medicare
-  - Medicaid
-  - CMS
-  - layoffs
-  - lawsuit
-  - "south florida"
-  - miami
-  - broward
-  - "palm beach"
+# PRIMARY dedup: semantic similarity via embeddings (compares meaning, not words, so
+# it generalizes to any wording/topic). Two stories whose embedding vectors are at
+# least this cosine-similar are the same event; the higher-scored one is kept. The
+# keyword rules above are only a free fallback if the embedding call fails.
+# Higher = stricter (fewer merges). Typical same-event news lands ~0.82-0.92.
+dedup_cosine_similarity: 0.85
+
+# Per-source cap on the scoring pool: keep at most this many (most-recent) articles
+# from any single source, so a high-volume feed (e.g. a wire that posts 30 general
+# stories/day) can't flood the pool.
+max_per_source: 15
+
+# High-value sources EXEMPT from max_per_source — every article from these is scored,
+# never trimmed. These are the low-volume competitor feeds; add a competitor here when
+# you expand the watchlist. (Exact source names from sources.yaml.)
+uncapped_sources:
+  - "Baptist Health South Florida"
+  - "Jackson Health System"
+  - "University of Miami Health System"
+  - "Cleveland Clinic Florida"
+  - "Memorial Healthcare System"
+  - "Mount Sinai Medical Center"
+  - "HCA Florida Healthcare"
+  - "Nicklaus Children's Hospital"
+  - "GNews - Jackson Health"
+  - "GNews - Baptist Health SF"
+  - "GNews - UHealth Miami"
+  - "GNews - Cleveland Clinic FL"
+  - "GNews - Memorial Healthcare"
+
+# Max items sent to the LLM relevance scorer per run (cost control only). When the
+# eligible pool exceeds this, we keep the most RECENT items (a neutral selector) — no
+# keyword influence. Set comfortably above typical daily volume so everything in the
+# 3-day window normally gets scored by the LLM.
+max_llm_scored_items: 150
+
+# NOTE: keyword-based prioritization (boost_keywords / critical_triggers) was removed
+# in favor of pure LLM semantic relevance to UHealth + a light intelligence-area
+# weight. Dedup is semantic (embeddings); the only remaining keyword logic is the
+# dedup *fallback* used when the embedding call fails.

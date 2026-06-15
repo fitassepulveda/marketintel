@@ -52,8 +52,8 @@ def main():
             print(f"{'':>13}-> {d['llm_rationale'][:120]}")
     print(f"\n{len(rows)} articles shown. 'IN?' = above threshold ({thr}). "
           f"'*sent*' = included in a briefing.\n"
-          f"Tune weights in config/weights.yaml: source_weights, category_weights, "
-          f"composite mix, score_threshold, boost_keywords.")
+          f"Tune in config/weights.yaml: category_weights, composite mix, "
+          f"score_threshold, dedup_cosine_similarity.")
 
 
 if __name__ == "__main__":

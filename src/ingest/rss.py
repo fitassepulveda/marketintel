@@ -1,12 +1,19 @@
 """RSS ingestion — free, covers all sources with type: rss."""
 from __future__ import annotations
 import logging
+import re
 import time
 from datetime import datetime, timedelta, timezone
+from html import unescape
 
 import feedparser
 
 log = logging.getLogger("ingest.rss")
+
+
+def _clean(text: str) -> str:
+    """Strip stray HTML tags/entities some feeds put in titles & summaries."""
+    return unescape(re.sub(r"<[^>]+>", "", text or "")).strip()
 
 # Some sites (HHS, Tribune papers) serve an HTML block page to bot-like
 # user agents, which feedparser chokes on ("mismatched tag"). Use a browser UA.
@@ -35,10 +42,13 @@ def fetch_feed(source: dict, area: str, lookback_hours: int) -> tuple[list[dict]
                 continue
             if not getattr(e, "link", None) or not getattr(e, "title", None):
                 continue
+            title = _clean(e.title)
+            if not title:
+                continue
             items.append({
                 "url": e.link,
-                "title": e.title,
-                "summary": getattr(e, "summary", "")[:2000],
+                "title": title,
+                "summary": _clean(getattr(e, "summary", ""))[:2000],
                 "source": source["name"],
                 "area": area,
                 "published": published.isoformat() if published else "",
