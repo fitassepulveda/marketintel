@@ -32,7 +32,10 @@ Step-by-step of what the pipeline does each run, and the reasoning behind each c
    We deliberately use **pure LLM relevance** (composite weights in `weights.yaml`): keyword
    rules were removed because they were blunt — they surfaced local fluff and missed strong
    stories with unexpected wording. Scoring runs at **temperature 0** so the same article gets
-   the same score every run (consistent rankings). A **per-source cap** (`max_per_source`)
+   the same score every run (consistent rankings). The prompt also weights **actionability** —
+   items implying a concrete decision/response (e.g. a competitor building a hospital) score
+   above passive, informational ones (e.g. a routine weather outlook); rubric is tunable in
+   `settings.yaml: briefing.relevance_guidance`. A **per-source cap** (`max_per_source`)
    stops a high-volume feed from flooding the pool; competitor sources are exempt
    (`uncapped_sources`) so their coverage is never trimmed.
 

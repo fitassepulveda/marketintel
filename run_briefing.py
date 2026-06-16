@@ -151,6 +151,7 @@ def prioritize(con, cfg, client, use_llm: bool) -> list[dict]:
         scores = llm_relevance.score_batch(
             client, models["scoring"], settings["org"],
             settings["key_questions"], to_score,
+            guidance=settings["briefing"].get("relevance_guidance", ""),
         )
     else:
         scores = [(5.0, "llm disabled")] * len(to_score)

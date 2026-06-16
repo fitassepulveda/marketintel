@@ -30,6 +30,21 @@ key_questions:
     Is there emerging reputation risk or public narrative risk?
 
 briefing:
+  # Extra scoring direction injected into the LLM relevance prompt (tune freely, no code
+  # change). Emphasis: ACTIONABILITY — reward items implying a concrete decision/response;
+  # penalize passive, purely informational items.
+  relevance_guidance: >
+    Weight ACTIONABILITY heavily. Score HIGH for items with concrete strategic or
+    operational implications the organization can act on — e.g. a competitor building or
+    expanding a hospital (affects growth strategy, capacity, recruiting), mergers,
+    acquisitions or partnerships, policy or reimbursement changes that demand a response,
+    service-line moves, leadership changes with strategic impact, or an imminent disruption
+    that requires continuity planning. Score LOW for passive or purely informational items
+    with no clear action — e.g. routine seasonal forecasts or weather "outlooks" with no
+    active threat to the region, general-awareness pieces, or commentary that implies no
+    decision. Concretely: a routine Atlantic tropical-weather outlook with no active storm
+    is NOT actionable (score low); an actual storm tracking toward South Florida IS
+    actionable (operational continuity) and scores high.
   # How far back to look for "new" items each run (hours). 72 = past 3 days, so a
   # Monday-morning run covers everything since Friday morning (the weekend gap).
   lookback_hours: 72

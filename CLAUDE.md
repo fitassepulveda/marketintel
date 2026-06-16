@@ -123,6 +123,11 @@ Becker's) — terms prohibit it; use headline RSS proxies instead.
 - **Pure LLM relevance, no keywords.** Keyword gating/boosts were removed — they surfaced
   local fluff (e.g. "Miami" matching sports) and missed well-worded stories. The LLM judges
   relevance to UHealth; area weight is a tunable nudge (currently 0).
+- **Actionability is weighted in scoring.** The LLM prompt rewards items that imply a concrete
+  decision/response (competitor builds a hospital → growth strategy) and penalizes passive,
+  informational items (a routine tropical-weather outlook). Core clause is in `llm_relevance.SYSTEM`;
+  the detailed rubric + examples live in `settings.yaml: briefing.relevance_guidance` (tune there,
+  no code change), injected into the scoring prompt via `score_batch(..., guidance=...)`.
 - **Semantic dedup, not string matching.** The same event from multiple feeds has different
   wording; embeddings catch meaning. String matching was proven to over/under-merge.
 - **3-day window by PUBLISH date** so a Monday run covers the weekend and old surfaced
