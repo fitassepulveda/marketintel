@@ -2,8 +2,10 @@ name: Daily Market Intelligence Briefing
 
 on:
   schedule:
-    # 11:00 UTC = 7:00 AM EDT (use 12:00 UTC during EST, Nov-Mar). Weekdays only.
-    - cron: "0 11 * * 1-5"
+    # 11:17 UTC = 7:17 AM EDT (use 12:17 UTC during EST, Nov-Mar). Weekdays only.
+    # Off-the-hour minute: top-of-hour schedules are the most contended and get
+    # delayed/dropped most often by GitHub's scheduler.
+    - cron: "17 11 * * 1-5"
   workflow_dispatch: {}   # allows manual runs from the Actions tab
 
 permissions:

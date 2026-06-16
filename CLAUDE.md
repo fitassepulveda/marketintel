@@ -15,7 +15,7 @@ and emails an HTML digest of the top stories each weekday morning.
   sent real email. First *scheduled* run is the next weekday 7am ET.
 - **Provider:** Gemini, with **billing enabled** (no longer on the flaky free tier).
 - **Scouts:** 2 active competitor scouts (Baptist Health, Jackson Health), scanning daily.
-- **Recipients:** wef28@miami.edu, fxs1141@miami.edu, cjvonherrath@miami.edu.
+- **Recipients:** wef28@miami.edu (trimmed from three to one on 2026-06-16).
 - All work committed and pushed to `github.com/fitassepulveda/marketintel` (branch `main`).
 
 ## Pipeline (current)
@@ -80,7 +80,8 @@ Entry point: `run_briefing.py`. Flags: `--dry-run` (build + save, don't send),
   `--restart`. Schedules first run at `scout_scan_hour_local` (6am) and asks for
   `published_date`. **Must run locally** (needs network to api.yutori.com).
 - `scripts/verify_sources.py` — checks RSS URLs. `scripts/score_report.py` — debug ranking.
-- `.github/workflows/daily-briefing.yml` — 7am ET weekday schedule + manual dispatch.
+- `.github/workflows/daily-briefing.yml` — 7:17am ET weekday schedule (cron `17 11`,
+  off-the-hour to dodge GitHub's top-of-hour scheduler delays) + manual dispatch.
 
 ## Config (current values, all in `config/`)
 
@@ -89,7 +90,7 @@ Entry point: `run_briefing.py`. Flags: `--dry-run` (build + save, don't send),
   `org.timezone` America/New_York.
 - `llm.provider: gemini`; scoring & synthesis both `gemini-2.5-flash`.
 - `briefing.lookback_hours: 72`, `max_stories: 5`, `digest_top_n: 5`,
-  `digest_recipients: [wef28@, fxs1141@, cjvonherrath@] miami.edu`.
+  `digest_recipients: [wef28@miami.edu]`.
 - `yutori`: `output_interval_seconds: 86400` (daily), `stop_after_first_update: false`
   (keep running daily), `scout_scan_hour_local: 6`, `enrich_publish_dates: true`.
 

@@ -42,8 +42,6 @@ briefing:
   digest_top_n: 5
   digest_recipients:
     - "wef28@miami.edu"
-    - "fxs1141@miami.edu"
-    - "cjvonherrath@miami.edu"
 
 llm:
   # "gemini" (free tier: aistudio.google.com) or "anthropic" (console.anthropic.com)
