@@ -58,14 +58,15 @@ Step-by-step of what the pipeline does each run, and the reasoning behind each c
    the threshold, a short **quiet-day note** is sent anyway, so silence never looks like a
    broken pipeline.
 
-7. **Scheduling.** Scouts scan once daily at ~6am ET (set at scout creation). The briefing runs
-   ~7:17am ET weekdays via GitHub Actions (`.github/workflows/daily-briefing.yml`; cron `17 11`,
+7. **Scheduling.** Scouts scan once daily at 5am ET (set at scout creation). The briefing runs
+   ~6:07am ET weekdays via GitHub Actions (`.github/workflows/daily-briefing.yml`; cron `7 10`,
    deliberately off the top of the hour, which GitHub's scheduler delays/drops most often), so
    the fresh scan precedes the email. A **watchdog** (`.github/workflows/briefing-watchdog.yml`,
-   ~9:42am ET) checks the GitHub API for a successful briefing run that day and emails an
+   ~8:12am ET) checks the GitHub API for a successful briefing run that day and emails an
    `[ALERT]` if none is found — so a silently dropped schedule never goes unnoticed. Secrets
-   live in GitHub (never in the repo); dedup memory persists between runs via the Actions cache
-   (fragile — committing `data/intel.db` back each run is the durable upgrade).
+   live in GitHub (never in the repo); dedup memory is durable — `data/intel.db` is committed
+   back to the repo after each successful run (shared by local + CI runs, and the daily commit
+   also keeps the schedule from auto-pausing).
 
 **Cost:** Gemini ≈ a few cents/run (scoring + synthesis + embeddings). Yutori = **$0.35 per
 scout-scan**, so each competitor scout ≈ $10.50/month at one daily scan. RSS/Google-News is free.
@@ -79,7 +80,7 @@ Full background in `docs/Implementation_Plan.docx`.
 
 **Current status:** live and automated end-to-end — Gemini scoring/synthesis (billing
 enabled), Yutori scouts running daily (Baptist, Jackson), real sends validated, scheduled
-7:17am ET weekday run + missed-run watchdog in place. Remaining work is calibration, scaling
+6:07am ET weekday run (scouts scan 5am) + missed-run watchdog in place. Remaining work is calibration, scaling
 competitor scouts, and leadership go-live sign-off.
 
 ### Phase A — INPUTS (data capture & ingestion) · Jun 12–17
@@ -114,7 +115,7 @@ competitor scouts, and leadership go-live sign-off.
 |---|---|
 | Done | Executive summary synthesis + HTML email template |
 | Done | Gmail App Password setup; first real send validated |
-| Done | GitHub Actions secrets + scheduled daily run (7:17am ET) + missed-run watchdog |
+| Done | GitHub Actions secrets + scheduled daily run (6:07am ET) + missed-run watchdog |
 | Open | 5 consecutive automated deliveries reviewed by team |
 
 **🚩 GATE G3 — Jun 30:** five clean automated runs; format approved by S&T leadership.
@@ -164,14 +165,14 @@ python run_briefing.py                                 # real run (sends email)
 ## Scheduling the daily run
 
 **Option A — GitHub Actions (recommended, in use):** `.github/workflows/daily-briefing.yml`
-runs ~7:17am ET every weekday in the cloud (cron `17 11`). Add the `.env` values as repository
+runs ~6:07am ET every weekday in the cloud (cron `7 10`). Add the `.env` values as repository
 secrets (Settings → Secrets and variables → Actions), plus `ALERT_EMAIL_TO` for the watchdog.
 No computer needs to be on. The `briefing-watchdog.yml` workflow emails an alert if a day's run
 is missed.
 
 **Option B — local cron (macOS/Linux):**
 ```
-17 11 * * 1-5 cd /path/to/marketintel && .venv/bin/python run_briefing.py
+7 10 * * 1-5 cd /path/to/marketintel && .venv/bin/python run_briefing.py
 ```
 
 ## Tuning

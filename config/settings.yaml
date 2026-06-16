@@ -81,5 +81,7 @@ yutori:
   # briefing gets fresh competitor news every morning.
   stop_after_first_update: false
   # Local hour (in org.timezone) for each daily scout scan. New scouts are scheduled
-  # so their first run — and every run after — lands at this hour.
-  scout_scan_hour_local: 6
+  # so their first run — and every run after — lands at this hour. NOTE: changing this
+  # only affects scouts created AFTER the change — re-run setup_scouts.py --force to
+  # move existing scouts (Baptist, Jackson) to the new hour.
+  scout_scan_hour_local: 5

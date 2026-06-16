@@ -2,10 +2,10 @@ name: Daily Market Intelligence Briefing
 
 on:
   schedule:
-    # 11:17 UTC = 7:17 AM EDT (use 12:17 UTC during EST, Nov-Mar). Weekdays only.
-    # Off-the-hour minute: top-of-hour schedules are the most contended and get
-    # delayed/dropped most often by GitHub's scheduler.
-    - cron: "17 11 * * 1-5"
+    # 10:07 UTC = 6:07 AM EDT (use 11:07 UTC during EST, Nov-Mar). Weekdays only.
+    # A few minutes past the hour on purpose: top-of-hour schedules are the most
+    # contended and get delayed/dropped most often by GitHub's scheduler.
+    - cron: "7 10 * * 1-5"
   workflow_dispatch: {}   # allows manual runs from the Actions tab
 
 permissions:
@@ -24,12 +24,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Restore article database
-        uses: actions/cache@v4
-        with:
-          path: data/intel.db
-          key: intel-db-${{ github.run_id }}
-          restore-keys: intel-db-
+      # The dedup database (data/intel.db) is committed to the repo, so actions/checkout
+      # above already restored the latest copy — no cache step needed. It's the single,
+      # durable source of dedup memory shared by local and CI runs.
 
       - name: Run briefing pipeline
         env:
@@ -44,6 +41,20 @@ jobs:
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
         # During calibration (plan task 3.5), add --dry-run here and review the artifact instead
         run: python run_briefing.py
+
+      - name: Persist updated database
+        if: success()
+        run: |
+          git add -f data/intel.db
+          if git diff --cached --quiet; then
+            echo "No database changes to commit."
+          else
+            git config user.name  "marketintel-bot"
+            git config user.email "um.marketintel.bot@users.noreply.github.com"
+            git commit -m "chore: update intel.db dedup memory [skip ci]"
+            # Single automated writer; if a concurrent commit landed, rebase and retry once.
+            git push || (git pull --rebase --autostash && git push)
+          fi
 
       - name: Upload briefing artifact
         if: always()

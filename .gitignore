@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 data/*.db
+!data/intel.db          # tracked on purpose: durable dedup memory (briefed_on, enriched dates, scout cursors)
 data/briefings/
 .venv/
 venv/

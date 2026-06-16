@@ -12,9 +12,9 @@ and emails an HTML digest of the top stories each weekday morning.
 ## Status (as of last session)
 
 - **Live and automated.** Validated end-to-end; a successful manual GitHub Actions run
-  sent real email. Scheduled weekday run is 7:17am ET (cron moved off the top of the
-  hour on 2026-06-16 after a scheduled run was silently dropped; a watchdog now alerts
-  on any missed run).
+  sent real email. Scheduled weekday run is 6:07am ET (a few minutes past the hour, after
+  a top-of-hour scheduled run was silently dropped on 2026-06-16; a watchdog alerts on any
+  missed run). Yutori scouts scan at 5am ET, an hour ahead of the report.
 - **Provider:** Gemini, with **billing enabled** (no longer on the flaky free tier).
 - **Scouts:** 2 active competitor scouts (Baptist Health, Jackson Health), scanning daily.
 - **Recipients:** wef28@miami.edu (trimmed from three to one on 2026-06-16).
@@ -82,13 +82,13 @@ Entry point: `run_briefing.py`. Flags: `--dry-run` (build + save, don't send),
   `_fmt_date`, `send()`.
 - `scripts/setup_scouts.py` — create/manage scouts: `--list`, `--dry-run`, `--force`
   (archives the old scout first to avoid orphan billing), `--sources`, `--stop`,
-  `--restart`. Schedules first run at `scout_scan_hour_local` (6am) and asks for
+  `--restart`. Schedules first run at `scout_scan_hour_local` (5am) and asks for
   `published_date`. **Must run locally** (needs network to api.yutori.com).
 - `scripts/verify_sources.py` — checks RSS URLs. `scripts/score_report.py` — debug ranking.
-- `.github/workflows/daily-briefing.yml` — 7:17am ET weekday schedule (cron `17 11`,
+- `.github/workflows/daily-briefing.yml` — 6:07am ET weekday schedule (cron `7 10`,
   off-the-hour to dodge GitHub's top-of-hour scheduler delays) + manual dispatch.
 - `scripts/watchdog.py` + `.github/workflows/briefing-watchdog.yml` — missed-run
-  backstop. At 9:42am ET weekdays (cron `42 13`, separate off-hour minute) it queries
+  backstop. At 8:12am ET weekdays (cron `12 12`, separate off-hour minute) it queries
   the GitHub API for a *successful* briefing run dated today (ET); if none — silent
   schedule drop or a failed run — it emails an `[ALERT]` via the same SMTP secrets.
   Stdlib only. Alert goes to `ALERT_EMAIL_TO` secret, falling back to `SMTP_USER`.
@@ -103,7 +103,7 @@ Entry point: `run_briefing.py`. Flags: `--dry-run` (build + save, don't send),
   `enrich_timeout_seconds: 10`, `max_stories: 5`, `digest_top_n: 5`,
   `digest_recipients: [wef28@miami.edu]`.
 - `yutori`: `output_interval_seconds: 86400` (daily), `stop_after_first_update: false`
-  (keep running daily), `scout_scan_hour_local: 6`, `enrich_publish_dates: true`.
+  (keep running daily), `scout_scan_hour_local: 5`, `enrich_publish_dates: true`.
 
 `weights.yaml`
 - `composite: source 0.0 / category 0.0 / llm 1.0` → **100% LLM relevance** (user's
@@ -147,10 +147,12 @@ Becker's) — terms prohibit it; use headline RSS proxies instead.
 
 - **Run manually:** `python3 run_briefing.py` (real send) / `--dry-run` (preview to
   `data/briefings/`). On the user's Mac it's `python3` (Python 3.9).
-- **Automation:** GitHub Actions runs 7:17am ET weekdays. Secrets (GEMINI_API_KEY,
-  YUTORI_API_KEY, SMTP_HOST/PORT/USER/PASS, EMAIL_FROM) are set in the repo. Dedup DB
-  persists between runs via the Actions cache (recipients/config come from the repo, so
-  config changes require a push to take effect).
+- **Automation:** GitHub Actions runs 6:07am ET weekdays. Secrets (GEMINI_API_KEY,
+  YUTORI_API_KEY, SMTP_HOST/PORT/USER/PASS, EMAIL_FROM) are set in the repo. The dedup DB
+  (`data/intel.db`) is **committed back to the repo** after each successful run (workflow
+  step "Persist updated database", using the default GITHUB_TOKEN with `contents: write`),
+  so dedup memory is durable and shared by local + CI runs — no Actions cache. (Recipients/
+  config also come from the repo, so config changes require a push to take effect.)
 - **Add competitor scouts:** `python3 scripts/setup_scouts.py --force --sources "Name1,Name2"`
   (names from sources.yaml). Each scout ≈ $0.35/scan/day ≈ $10.50/month.
 - **Email:** from um.marketintel.bot@gmail.com (Gmail App Password in SMTP_PASS).
@@ -170,17 +172,19 @@ Becker's) — terms prohibit it; use headline RSS proxies instead.
   for `X | None` hints. CI uses 3.12.
 - **GitHub token** is stored in plaintext in the repo's remote URL — recommend rotating.
 - Stale `.git/index.lock` can block git; `rm -f .git/index.lock` clears it.
-- GitHub Actions auto-pauses a schedule after 60 days of no repo activity (runs use cache,
-  not commits, so they don't count). Occasional pushes keep it alive.
+- GitHub Actions auto-pauses a schedule after 60 days of no repo activity. The daily DB
+  commit-back now counts as activity, so the schedule stays alive on its own (bonus of
+  persisting the DB in git rather than the cache).
 
 ## Open / next steps
 
 1. Set the `ALERT_EMAIL_TO` repo secret (watchdog alert recipient; falls back to SMTP_USER).
-   Confirm the scheduled 7:17am run delivers cleanly to wef28@miami.edu.
+   Confirm the scheduled 6:07am run delivers cleanly to wef28@miami.edu.
 2. Scale competitor scouts beyond Baptist/Jackson (uncapped_sources already lists them).
 3. Rotate the GitHub access token.
-4. Optional hardening: commit the DB back each run (durable dedup memory + keeps the
-   schedule from auto-pausing); a small test suite for dedup/window/scoring.
+4. DONE — DB now committed back each run (durable dedup memory + keeps the schedule alive).
+   Remaining: a small test suite for dedup/window/scoring; watch repo size as the binary
+   DB accumulates history (squash or BFG-prune if it ever gets large).
 
 ## Style
 
