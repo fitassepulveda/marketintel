@@ -1,0 +1,33 @@
+name: Briefing Watchdog
+
+on:
+  schedule:
+    # 13:42 UTC = 9:42 AM EDT (use 14:42 UTC during EST, Nov-Mar). ~2.5h after the
+    # 7:17 briefing, on a separate off-the-hour minute so the two schedules are very
+    # unlikely to be dropped on the same day. Weekdays only.
+    - cron: "42 13 * * 1-5"
+  workflow_dispatch: {}   # allows manual checks from the Actions tab
+
+permissions:
+  actions: read    # to read the briefing workflow's run history
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check that today's briefing ran
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}     # auto-provided; actions:read above
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}   # falls back to SMTP_USER if unset
+        run: python scripts/watchdog.py

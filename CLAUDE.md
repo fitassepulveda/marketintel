@@ -82,6 +82,11 @@ Entry point: `run_briefing.py`. Flags: `--dry-run` (build + save, don't send),
 - `scripts/verify_sources.py` — checks RSS URLs. `scripts/score_report.py` — debug ranking.
 - `.github/workflows/daily-briefing.yml` — 7:17am ET weekday schedule (cron `17 11`,
   off-the-hour to dodge GitHub's top-of-hour scheduler delays) + manual dispatch.
+- `scripts/watchdog.py` + `.github/workflows/briefing-watchdog.yml` — missed-run
+  backstop. At 9:42am ET weekdays (cron `42 13`, separate off-hour minute) it queries
+  the GitHub API for a *successful* briefing run dated today (ET); if none — silent
+  schedule drop or a failed run — it emails an `[ALERT]` via the same SMTP secrets.
+  Stdlib only. Alert goes to `ALERT_EMAIL_TO` secret, falling back to `SMTP_USER`.
 
 ## Config (current values, all in `config/`)
 
@@ -154,7 +159,8 @@ Becker's) — terms prohibit it; use headline RSS proxies instead.
 
 ## Open / next steps
 
-1. Confirm the first scheduled 7am run delivers cleanly to all three recipients.
+1. Set the `ALERT_EMAIL_TO` repo secret (watchdog alert recipient; falls back to SMTP_USER).
+   Confirm the scheduled 7:17am run delivers cleanly to wef28@miami.edu.
 2. Scale competitor scouts beyond Baptist/Jackson (uncapped_sources already lists them).
 3. Rotate the GitHub access token.
 4. Optional hardening: commit the DB back each run (durable dedup memory + keeps the
