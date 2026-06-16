@@ -33,6 +33,15 @@ briefing:
   # How far back to look for "new" items each run (hours). 72 = past 3 days, so a
   # Monday-morning run covers everything since Friday morning (the weekend gap).
   lookback_hours: 72
+  # Once a story has been briefed, it stays eligible (so re-running the same day
+  # reproduces the same briefing) until this many hours have passed since it was
+  # FIRST briefed; after that it's suppressed and fresh stories take its place.
+  rebrief_after_hours: 24
+  # For any candidate article missing a publish date, fetch the page and read the
+  # date the site records (article:published_time / JSON-LD), so the 72h window
+  # filters on a real publish date instead of fetch time. Persisted (fetched once).
+  enrich_publish_dates: true
+  enrich_timeout_seconds: 10
   # Top N must-include stories the LLM ranks and we keep
   max_stories: 5
   # Top-line takeaways count

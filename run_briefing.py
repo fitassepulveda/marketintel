@@ -16,7 +16,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 from src import config, store
-from src.ingest import rss, yutori
+from src.ingest import rss, yutori, enrich
 from src.llm_client import LLMClient
 from src.output import emailer, synthesize
 from src.prioritize import llm_relevance, scoring
@@ -73,9 +73,29 @@ def _parse_dt(s) -> datetime | None:
     return dt
 
 
+def _enrich_undated(con, rows: list[dict], timeout: int) -> None:
+    """For candidate rows with no publish date, read it from the article page and
+    persist it, so the 72h filter runs on a real date rather than fetch time.
+    Best-effort and in-place: failures leave the row undated (fetch-time fallback)."""
+    undated = [a for a in rows if not _parse_dt(a.get("published")) and a.get("url")]
+    if not undated:
+        return
+    filled = 0
+    for a in undated:
+        iso = enrich.fetch_published_date(a["url"], timeout)
+        if iso and _parse_dt(iso):
+            a["published"] = iso
+            store.set_published(con, a["id"], iso)
+            filled += 1
+    if filled:
+        con.commit()
+    log.info("Date enrichment: recovered %d/%d undated publish dates", filled, len(undated))
+
+
 def _is_recent(article: dict, cutoff: datetime) -> bool:
-    """Recent = PUBLISHED on/after cutoff. If no usable publish date, fall back to
-    when we fetched it (so undated items can't be older than the window either)."""
+    """Recent = PUBLISHED on/after cutoff. If no usable publish date (even after page
+    enrichment), fall back to when we fetched it. With enrichment this fallback is a
+    rare exception, not the rule — so almost everything is filtered on a true date."""
     pub = _parse_dt(article.get("published"))
     if pub is not None:
         return pub >= cutoff
@@ -90,7 +110,17 @@ def prioritize(con, cfg, client, use_llm: bool) -> list[dict]:
     # Pull a generous FETCH window, then keep only items PUBLISHED within the cutoff —
     # so an old article surfaced today (by a scout or feed) doesn't sneak in.
     fetch_floor = (now - timedelta(days=14)).isoformat()
-    rows = [dict(r) for r in store.unbriefed_recent(con, fetch_floor)]
+    # Stories first briefed within rebrief_after_hours stay eligible (same-day re-runs
+    # reproduce the same briefing); older briefed stories are suppressed so fresh news
+    # surfaces. Default 24h if unset.
+    rebrief_hours = settings["briefing"].get("rebrief_after_hours", 24)
+    briefed_after = (now - timedelta(hours=rebrief_hours)).isoformat()
+    rows = [dict(r) for r in store.candidates_recent(con, fetch_floor, briefed_after)]
+    # Recover real publish dates for undated items (RSS + scouts) by reading the
+    # article page's metadata, so the 72h window filters on a true publish date
+    # instead of fetch time. Persisted, so each page is fetched at most once.
+    if settings["briefing"].get("enrich_publish_dates", True):
+        _enrich_undated(con, rows, settings["briefing"].get("enrich_timeout_seconds", 10))
     rows = [a for a in rows if _is_recent(a, cutoff)]
     if not rows:
         log.info("No articles published within the last %dh.", settings["briefing"]["lookback_hours"])
@@ -266,7 +296,9 @@ def main():
     # Only consume dedup state when the briefing actually went out — a dry run or a
     # failed/skipped send must not mark stories as already-briefed.
     if sent:
-        store.mark_briefed(con, [a["id"] for a in top], run_date)
+        # Full ISO timestamp (not just the date) so the rebrief window is measured
+        # precisely from the first time each story was briefed.
+        store.mark_briefed(con, [a["id"] for a in top], datetime.now(timezone.utc).isoformat())
         con.commit()
 
 

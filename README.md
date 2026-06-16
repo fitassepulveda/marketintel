@@ -5,7 +5,8 @@ Policy & Industry, South Florida Competitive Intel, Payer & Insurance, Innovatio
 Public Health & Geopolitical Risk, and Reputation & Media Monitoring.
 
 **Pipeline:** RSS + Yutori-scout ingestion → SQLite store → 3-day publish-date filter →
-LLM relevance scoring (vs. UHealth) → semantic dedup → LLM synthesis → HTML digest email.
+LLM relevance scoring (vs. UHealth) → semantic dedup → 24h re-brief suppression →
+LLM synthesis → HTML digest email. A separate watchdog alerts if a day's run is missed.
 
 ---
 
@@ -21,8 +22,10 @@ Step-by-step of what the pipeline does each run, and the reasoning behind each c
 2. **3-day window by *publish* date (`run_briefing._is_recent`).** We keep only stories
    published in the last 72h — so a Monday run covers the weekend back to Friday. We filter on
    the article's *publish* date, not when we fetched it, so an old story a scout surfaces today
-   can't sneak in. Undated items fall back to fetch time (so a good story is never dropped just
-   for lacking a date).
+   can't sneak in. Items that arrive **undated** are first date-enriched (`src/ingest/enrich.py`):
+   we fetch the article page and read the publish date the site records, so the window filters
+   on a true date. Only if that also fails do we fall back to fetch time — a rare exception, so
+   nothing provably older than 72h gets through, while genuinely-recent undated stories are kept.
 
 3. **Relevance scoring (`src/prioritize/`).** Every recent article is scored 0–10 by the LLM
    (Gemini) for relevance to UHealth, judged against its intelligence area's key question.
@@ -39,6 +42,12 @@ Step-by-step of what the pipeline does each run, and the reasoning behind each c
    copy. This generalizes far better than matching words; a keyword fallback only kicks in if
    the embedding call fails.
 
+   *Across days (`store.candidates_recent` / `mark_briefed`):* once a story is briefed it's
+   stamped with the time it *first* went out and stays eligible for `rebrief_after_hours`
+   (default 24h), then is suppressed. So re-running the same day reproduces the same briefing
+   instead of burning a fresh top-5 each run, while the next day's run rolls over to new
+   stories. This depends on the SQLite dedup memory persisting between runs (see Scheduling).
+
 5. **Synthesis (`src/output/synthesize.py`).** The top stories go to the LLM, which writes the
    per-story narrative (what happened / why it matters to UHealth / exposure / what to watch).
    It's told to produce one story per item (dedup already happened upstream).
@@ -50,9 +59,13 @@ Step-by-step of what the pipeline does each run, and the reasoning behind each c
    broken pipeline.
 
 7. **Scheduling.** Scouts scan once daily at ~6am ET (set at scout creation). The briefing runs
-   ~7am ET weekdays via GitHub Actions (`.github/workflows/daily-briefing.yml`), so the fresh
-   scan precedes the email. Secrets live in GitHub (never in the repo); dedup memory persists
-   between runs via the Actions cache.
+   ~7:17am ET weekdays via GitHub Actions (`.github/workflows/daily-briefing.yml`; cron `17 11`,
+   deliberately off the top of the hour, which GitHub's scheduler delays/drops most often), so
+   the fresh scan precedes the email. A **watchdog** (`.github/workflows/briefing-watchdog.yml`,
+   ~9:42am ET) checks the GitHub API for a successful briefing run that day and emails an
+   `[ALERT]` if none is found — so a silently dropped schedule never goes unnoticed. Secrets
+   live in GitHub (never in the repo); dedup memory persists between runs via the Actions cache
+   (fragile — committing `data/intel.db` back each run is the durable upgrade).
 
 **Cost:** Gemini ≈ a few cents/run (scoring + synthesis + embeddings). Yutori = **$0.35 per
 scout-scan**, so each competitor scout ≈ $10.50/month at one daily scan. RSS/Google-News is free.
@@ -61,8 +74,13 @@ scout-scan**, so each competitor scout ≈ $10.50/month at one daily scan. RSS/G
 
 ## Work Plan
 
-Status date: **June 12, 2026**. Owners: **W** = William, **F** = Fernando, **C** = Christoph.
+Status date: **June 16, 2026**. Owners: **W** = William, **F** = Fernando, **C** = Christoph.
 Full background in `docs/Implementation_Plan.docx`.
+
+**Current status:** live and automated end-to-end — Gemini scoring/synthesis (billing
+enabled), Yutori scouts running daily (Baptist, Jackson), real sends validated, scheduled
+7:17am ET weekday run + missed-run watchdog in place. Remaining work is calibration, scaling
+competitor scouts, and leadership go-live sign-off.
 
 ### Phase A — INPUTS (data capture & ingestion) · Jun 12–17
 
@@ -73,19 +91,20 @@ Full background in `docs/Implementation_Plan.docx`.
 | Done | Google News fallback queries for competitor monitoring |
 | Open | Fix remaining quiet feeds (Rock Health, CDC, WHO, SFBJ, FL DOH) — `python scripts/verify_sources.py` |
 | Done | Yutori access decision (subscription vs. API) — question to Jake |
-| Open | Integrate Yutori Scouting API in `src/ingest/yutori.py` (replaces stub) |
+| Done | Integrate Yutori Scouting API in `src/ingest/yutori.py` (scouts live: Baptist, Jackson) |
 
-**🚩 GATE G1 — Jun 18 review call:** all six areas ingesting reliably; Yutori access approved or explicitly deferred.
+**🚩 GATE G1 — Jun 18 review call:** all six areas ingesting reliably; Yutori access approved or explicitly deferred. *(Yutori live; quiet-feed cleanup ongoing.)*
 
 ### Phase B — DIGESTION (prioritization & calibration) · Jun 15–24
 
 | Status | Task |
 |---|---|
-| Open | Composite scoring engine (source × category × LLM relevance, threshold 55) |
-| Open | Gemini scoring integration (free tier) + score report tool
+| Done | Composite scoring engine — tuned to **pure LLM relevance** (threshold 55) |
+| Done | Gemini scoring integration (billing enabled) + score report tool |
+| Done | 24h re-brief window so daily runs serve fresh stories (`rebrief_after_hours`) |
 | Open | Daily calibration runs: `python run_briefing.py --dry-run --no-yutori` + `python scripts/score_report.py` |
-| Open | Tune `config/weights.yaml` from team feedback (source weights, threshold, keywords) |
-| Open | Confirm competitor watchlist with leadership | 
+| Open | Tune `config/weights.yaml` from team feedback (area weights, threshold) |
+| Open | Confirm competitor watchlist with leadership |
 
 **🚩 GATE G2 — Jun 24:** team agrees the top stories are the right stories for 3 consecutive days.
 
@@ -94,9 +113,9 @@ Full background in `docs/Implementation_Plan.docx`.
 | Status | Task |
 |---|---|
 | Done | Executive summary synthesis + HTML email template |
-| Open | Gmail App Password setup; first real send to project team only |
-| Open | GitHub Actions secrets + scheduled daily run (workflow already in repo) |
-| Open | 5 consecutive automated dry-run deliveries reviewed by team |
+| Done | Gmail App Password setup; first real send validated |
+| Done | GitHub Actions secrets + scheduled daily run (7:17am ET) + missed-run watchdog |
+| Open | 5 consecutive automated deliveries reviewed by team |
 
 **🚩 GATE G3 — Jun 30:** five clean automated runs; format approved by S&T leadership.
 
@@ -122,11 +141,15 @@ Required keys in `.env`:
 
 | Variable | Where to get it |
 |---|---|
-| `GEMINI_API_KEY` | aistudio.google.com (free tier — default provider) |
+| `GEMINI_API_KEY` | aistudio.google.com (billing enabled — default provider) |
 | `ANTHROPIC_API_KEY` | console.anthropic.com (only if `llm.provider: anthropic`) |
-| `YUTORI_API_KEY` | platform.yutori.com (pending procurement — use `--no-yutori`) |
+| `YUTORI_API_KEY` | platform.yutori.com (scouts live; `--no-yutori` to skip) |
 | `SMTP_USER` / `SMTP_PASS` | Gmail address + App Password (Google Account → Security → 2-Step Verification → App passwords) |
-| `EMAIL_TO` | comma-separated recipients |
+| `EMAIL_FROM` | sender address shown on the digest |
+| `ALERT_EMAIL_TO` | watchdog alert recipient (falls back to `SMTP_USER`) |
+
+Digest **recipients** are set in `config/settings.yaml` (`briefing.digest_recipients`), not
+in `.env` — currently `wef28@miami.edu`.
 
 ## Running
 
@@ -140,20 +163,22 @@ python run_briefing.py                                 # real run (sends email)
 
 ## Scheduling the daily run
 
-**Option A — GitHub Actions (recommended):** `.github/workflows/daily-briefing.yml` runs every
-weekday morning in the cloud. Add the `.env` values as repository secrets
-(Settings → Secrets and variables → Actions). No computer needs to be on.
+**Option A — GitHub Actions (recommended, in use):** `.github/workflows/daily-briefing.yml`
+runs ~7:17am ET every weekday in the cloud (cron `17 11`). Add the `.env` values as repository
+secrets (Settings → Secrets and variables → Actions), plus `ALERT_EMAIL_TO` for the watchdog.
+No computer needs to be on. The `briefing-watchdog.yml` workflow emails an alert if a day's run
+is missed.
 
 **Option B — local cron (macOS/Linux):**
 ```
-0 7 * * 1-5 cd /path/to/marketintel && .venv/bin/python run_briefing.py
+17 11 * * 1-5 cd /path/to/marketintel && .venv/bin/python run_briefing.py
 ```
 
 ## Tuning
 
 All scoring behavior lives in `config/weights.yaml` (category/source weights, composite mix,
-threshold, keyword boosts) and `config/settings.yaml` (org profile, key questions, LLM
-provider/models, lookback window). No code changes needed to retune.
+threshold) and `config/settings.yaml` (org profile, key questions, LLM provider/models,
+lookback window, `rebrief_after_hours`, digest recipients). No code changes needed to retune.
 
 ## Working on this repo with Claude Code
 

@@ -89,10 +89,25 @@ def log_source_health(con, run_date: str, source: str, area: str, count: int, er
     )
 
 
-def unbriefed_recent(con, since_iso: str) -> list[sqlite3.Row]:
+def candidates_recent(con, since_iso: str, briefed_after_iso: str) -> list[sqlite3.Row]:
+    """Articles eligible for today's briefing.
+
+    Includes never-briefed items, PLUS items first briefed within the last
+    rebrief window (briefed_on > briefed_after_iso) so re-running inside that
+    window reproduces the same briefing. Items briefed before the cutoff are
+    suppressed, letting fresh stories surface. briefed_on is stored as a full
+    ISO timestamp; older bare-date values still compare correctly (ISO order).
+    """
     return con.execute(
-        "SELECT * FROM articles WHERE briefed_on IS NULL AND fetched >= ?", (since_iso,)
+        "SELECT * FROM articles WHERE fetched >= ? "
+        "AND (briefed_on IS NULL OR briefed_on > ?)",
+        (since_iso, briefed_after_iso),
     ).fetchall()
+
+
+def set_published(con, article_id: int, published_iso: str):
+    """Persist a publish date recovered by page enrichment, so we only fetch it once."""
+    con.execute("UPDATE articles SET published=? WHERE id=?", (published_iso, article_id))
 
 
 def save_scores(con, article_id: int, llm_score: float, rationale: str, composite: float):
@@ -102,8 +117,14 @@ def save_scores(con, article_id: int, llm_score: float, rationale: str, composit
     )
 
 
-def mark_briefed(con, ids: list[int], date_str: str):
-    con.executemany("UPDATE articles SET briefed_on=? WHERE id=?", [(date_str, i) for i in ids])
+def mark_briefed(con, ids: list[int], ts_iso: str):
+    """Stamp the first-briefed time, but only once: re-runs within the rebrief
+    window must not push the timestamp forward (which would keep a story eligible
+    forever). The 24h clock therefore starts at the FIRST briefing."""
+    con.executemany(
+        "UPDATE articles SET briefed_on=? WHERE id=? AND briefed_on IS NULL",
+        [(ts_iso, i) for i in ids],
+    )
 
 
 def upsert_scout(con, source: str, area: str, scout_id: str, query: str):

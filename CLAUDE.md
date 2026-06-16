@@ -12,7 +12,9 @@ and emails an HTML digest of the top stories each weekday morning.
 ## Status (as of last session)
 
 - **Live and automated.** Validated end-to-end; a successful manual GitHub Actions run
-  sent real email. First *scheduled* run is the next weekday 7am ET.
+  sent real email. Scheduled weekday run is 7:17am ET (cron moved off the top of the
+  hour on 2026-06-16 after a scheduled run was silently dropped; a watchdog now alerts
+  on any missed run).
 - **Provider:** Gemini, with **billing enabled** (no longer on the flaky free tier).
 - **Scouts:** 2 active competitor scouts (Baptist Health, Jackson Health), scanning daily.
 - **Recipients:** wef28@miami.edu (trimmed from three to one on 2026-06-16).
@@ -61,6 +63,9 @@ Entry point: `run_briefing.py`. Flags: `--dry-run` (build + save, don't send),
   `fetched`, `llm_score`, `composite_score`, `briefed_on`), `source_health`,
   `scouts` (source→scout_id, `last_update_ts` cursor, `active` flag).
 - `src/ingest/rss.py` — feedparser ingestion; strips stray HTML from titles/summaries.
+- `src/ingest/enrich.py` — shared best-effort publish-date extractor: fetches an article
+  page and reads `article:published_time`/`og:`/JSON-LD `datePublished`/`<time>`. Used by
+  both the RSS path (via `run_briefing._enrich_undated`) and Yutori scouts. Never raises.
 - `src/ingest/yutori.py` — Yutori **Scouting API** adapter. Scouts are persistent
   monitors created once per source (via `scripts/setup_scouts.py`); each run polls
   `GET /scouting/tasks/{id}/updates` for findings newer than the stored cursor. Also
@@ -94,7 +99,8 @@ Entry point: `run_briefing.py`. Flags: `--dry-run` (build + save, don't send),
 - `org.name` "University of Miami Health System", `org.short_name` "UM",
   `org.timezone` America/New_York.
 - `llm.provider: gemini`; scoring & synthesis both `gemini-2.5-flash`.
-- `briefing.lookback_hours: 72`, `max_stories: 5`, `digest_top_n: 5`,
+- `briefing.lookback_hours: 72`, `rebrief_after_hours: 24`, `enrich_publish_dates: true`,
+  `enrich_timeout_seconds: 10`, `max_stories: 5`, `digest_top_n: 5`,
   `digest_recipients: [wef28@miami.edu]`.
 - `yutori`: `output_interval_seconds: 86400` (daily), `stop_after_first_update: false`
   (keep running daily), `scout_scan_hour_local: 6`, `enrich_publish_dates: true`.
@@ -120,18 +126,28 @@ Becker's) — terms prohibit it; use headline RSS proxies instead.
 - **Semantic dedup, not string matching.** The same event from multiple feeds has different
   wording; embeddings catch meaning. String matching was proven to over/under-merge.
 - **3-day window by PUBLISH date** so a Monday run covers the weekend and old surfaced
-  stories don't sneak in. Missing date never drops a story (falls back to fetch time + "—").
+  stories don't sneak in. Undated candidates are **date-enriched** first — we fetch the
+  article page and read its publish metadata (`src/ingest/enrich.py`) so the 72h filter
+  runs on a true date, not fetch time. Only if enrichment also fails do we fall back to
+  fetch time (a rare exception now, not the rule), so nothing provably older than 72h
+  gets through while genuinely-recent undated stories are still kept.
 - **Per-source cap** stops a high-volume feed (Fierce, Miami Herald) flooding the pool;
   competitors are exempt so their coverage is never trimmed.
 - **Scouts run daily (not one-shot).** `stop_after_first_update: false`. Briefing only
   polls (free); scouts scan once/day (the only Yutori charge).
 - **Quiet-day email** so silence ≠ broken pipeline.
+- **24h re-brief window, not one-shot.** A briefed story stays eligible until
+  `rebrief_after_hours` (24h) after it was *first* briefed, then is suppressed so fresh
+  news surfaces. `mark_briefed` stamps a full ISO timestamp and only when `briefed_on IS
+  NULL` (re-runs don't push the clock forward). `candidates_recent` includes never-briefed
+  items plus those briefed within the window. This makes same-day re-runs reproduce the
+  same briefing instead of burning a new top-5 every run, while next-day runs roll over.
 
 ## Operations
 
 - **Run manually:** `python3 run_briefing.py` (real send) / `--dry-run` (preview to
   `data/briefings/`). On the user's Mac it's `python3` (Python 3.9).
-- **Automation:** GitHub Actions runs 7am ET weekdays. Secrets (GEMINI_API_KEY,
+- **Automation:** GitHub Actions runs 7:17am ET weekdays. Secrets (GEMINI_API_KEY,
   YUTORI_API_KEY, SMTP_HOST/PORT/USER/PASS, EMAIL_FROM) are set in the repo. Dedup DB
   persists between runs via the Actions cache (recipients/config come from the repo, so
   config changes require a push to take effect).
