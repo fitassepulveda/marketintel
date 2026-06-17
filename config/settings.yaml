@@ -6,8 +6,12 @@ org:
   short_name: "UM"                  # abbreviation used in the email digest labels
   description: >
     Academic health system in South Florida (Miami metro) with a medical school,
-    hospitals, and outpatient network. Strategic focus: growth, academic medicine,
-    high-value service lines, payer leverage.
+    hospitals, and outpatient network. Flagship service lines (2025 U.S. News): ophthalmology
+    (Bascom Palmer Eye Institute, ranked #1 in the U.S.), oncology (Sylvester — South
+    Florida's only NCI-designated cancer center), neurology/neurosurgery (top-25 nationally),
+    urology (Desai Sethi Urology Institute), transplant (Miami Transplant Institute, one of
+    the nation's largest), and rehabilitation/spinal-cord (The Miami Project to Cure Paralysis).
+    Strategic focus: growth, academic medicine, high-value service lines, payer leverage.
   region: "South Florida (Miami-Dade, Broward, Palm Beach)"
   timezone: "America/New_York"      # used when scheduling Yutori scouts
 
@@ -31,20 +35,98 @@ key_questions:
 
 briefing:
   # Extra scoring direction injected into the LLM relevance prompt (tune freely, no code
-  # change). Emphasis: ACTIONABILITY — reward items implying a concrete decision/response;
-  # penalize passive, purely informational items.
-  relevance_guidance: >
-    Weight ACTIONABILITY heavily. Score HIGH for items with concrete strategic or
-    operational implications the organization can act on — e.g. a competitor building or
-    expanding a hospital (affects growth strategy, capacity, recruiting), mergers,
-    acquisitions or partnerships, policy or reimbursement changes that demand a response,
-    service-line moves, leadership changes with strategic impact, or an imminent disruption
-    that requires continuity planning. Score LOW for passive or purely informational items
-    with no clear action — e.g. routine seasonal forecasts or weather "outlooks" with no
-    active threat to the region, general-awareness pieces, or commentary that implies no
-    decision. Concretely: a routine Atlantic tropical-weather outlook with no active storm
-    is NOT actionable (score low); an actual storm tracking toward South Florida IS
-    actionable (operational continuity) and scores high.
+  # change). Calibrated 2026-06-17 to UHealth leadership's own review of 41 scored stories
+  # (Keep / Priority / Notes in prioritization_review.xlsx). Two gates (relevance, then
+  # actionability), full-range scoring, current priority service lines, and worked examples
+  # taken from that review. Revisit the "current priorities" line as service-line focus shifts.
+  relevance_guidance: |
+    HOW TO PRIORITIZE — calibrated to how UHealth leadership actually scored a sample of
+    these stories. Use the FULL 0-10 range and be STRICT: most general policy or
+    industry-trend items belong at 3-5, not 7-9. Reserve 8-10 for news that is both directly
+    relevant to UHealth AND actionable. Apply two gates first, then place on the scale.
+
+    GATE 1 — DIRECTLY RELEVANT TO UHEALTH? UHealth is an academic health system and care
+    provider in South Florida: it runs hospitals, clinics, and a medical school. It does NOT
+    manufacture drugs or sell insurance. A third party's lawsuit, settlement, or dispute (a
+    PBM, an insurer, a drugmaker, another company) is relevant ONLY if its outcome would have
+    a DIRECT and IMMEDIATE impact on UHealth. "Someone else's fight" or a story with only an
+    indirect connection scores 2-3, regardless of how big the headline is.
+
+    GATE 2 — ACTIONABLE? Does it imply a concrete decision, response, or plan for UHealth
+    leadership? Broad "state of the market," "what it means for patients," general-awareness,
+    and routine-regulatory-color pieces are NOT actionable on their own — score them 3-5 even
+    when well-written and accurate. Opinion/editorial pieces are excluded entirely (score 1).
+
+    SCORES HIGH (8-10):
+    - A competitor's concrete capital, capacity, M&A, partnership, or service-line move in
+      South Florida — a new hospital/ER/institute, a major philanthropic gift, a system
+      partnership. These bear directly on UHealth's growth, capacity, recruiting, and referrals.
+    - News touching UHealth's BIGGEST / flagship service lines — a policy change,
+      reimbursement shift, competitor entry, or clinical/technology development bearing on any
+      of them. In rough order of institutional prominence (2025 U.S. News + strategic focus):
+      OPHTHALMOLOGY (Bascom Palmer Eye Institute — ranked #1 in the U.S., the marquee program);
+      ONCOLOGY / cancer incl. immunotherapy (Sylvester — South Florida's only NCI-designated
+      center); NEUROLOGY / NEUROSURGERY (top-25 nationally); UROLOGY (Desai Sethi Urology
+      Institute); TRANSPLANT (Miami Transplant Institute, one of the nation's largest); and
+      REHABILITATION / spinal-cord & paralysis (The Miami Project). A development in one of
+      these — especially ophthalmology, oncology, or transplant — should score high.
+    - Cross-cutting policy priority right now: PHARMACY & drug-pricing (Medicare price
+      negotiation, PBM regulation), which directly affects the service lines above —
+      prioritize it.
+    - Academic-medicine, research, or workforce-pipeline competition (a rival launching an
+      academy, research institute, or training program).
+    - Concrete, specific innovation/AI with a real deployment, vendor, or measured result that
+      UHealth could adopt — NOT generic "AI is transforming healthcare" commentary.
+
+    MIDDLE / "slow-day" tier (5-6): solid but general or non-urgent — a competitor leadership
+    change, an early-stage policy proposal, a single FDA approval. Worth including only when
+    nothing more actionable is available that day.
+
+    LOW (1-4): not actionable; general market/industry trends; third-party disputes without
+    direct UHealth impact; routine forecasts with no active threat; opinion pieces; awareness-only.
+
+    EXCEPTION: a genuinely major public-health or policy development of broad importance
+    (e.g. a global pandemic agreement, a region-wide health emergency) may score high even if
+    "general," because leadership must be aware of it.
+
+    WORKED EXAMPLES (title -> score: reason) — these are UHealth's own judgments:
+    - "FIU Breaks Ground on $158M Medical Center in Baptist Partnership" -> 10: competitor
+      capital + capacity + academic move, in-region.
+    - "Baptist Health Foundation Announces Historic $100M Gift" -> 10: major competitor capital event.
+    - "New Emergency Room at Jackson Memorial Hospital Now Open" -> 10: competitor capacity expansion.
+    - "Medicare drug price rule may target under-the-skin cancer immunotherapies" -> 9: hits a
+      top UHealth service line (oncology/immunotherapy) with direct policy consequences.
+    - "Express Scripts files suit to challenge Tennessee PBM law" -> 9: pharmacy/PBM policy, a
+      current priority area.
+    - "Cedar's voice AI agent has handled nearly 400K patient calls since launch" -> 8:
+      concrete, proven operational AI UHealth could act on (NOT a general AI-trend piece).
+    - "Miami Dade College & Jackson Health launch Health Science Collegiate Academy" -> 8:
+      academic / workforce competition, in-region.
+    - "Major Medicare Advantage insurers appear to deny care for profit, watchdog finds" -> 5:
+      newsworthy but not actionable for UHealth.
+    - "Big money is pouring into South Florida health systems — what it means for patients" -> 5:
+      market-trend overview, not a specific actionable development.
+    - "Optum Rx, FTC poised for settlement in insulin pricing case" -> 3: a third party's
+      dispute, no direct or immediate UHealth impact.
+    - "Why one health system invested in its PBM as GLP-1 costs surged" -> 3: not relevant —
+      UHealth does not produce drugs.
+    - "Opinion: I'm a pediatrician. I want to prescribe the right AI..." -> 1: opinion piece.
+    - "Atlantic Tropical Weather Outlook" (no active storm) -> 1: not actionable.
+
+    FLAGSHIP SERVICE-LINE EXAMPLES (illustrative — anchor how the flagship lines should score;
+    the relevance + actionability gates still apply WITHIN a flagship line):
+    - "Medicare proposes cutting reimbursement for anti-VEGF retinal injections" -> 9: hits
+      ophthalmology, UHealth's #1 program (Bascom Palmer), with direct revenue consequences.
+    - "National eye-care group opens LASIK and retina centers across Miami-Dade" -> 8: a direct
+      competitor entry against Bascom Palmer, in-region.
+    - "CMS finalizes a new organ-transplant payment model / center-volume requirements" -> 9:
+      directly affects the Miami Transplant Institute, a flagship high-volume line.
+    - "Competitor health system launches a comprehensive stroke & neurosurgery center in Broward"
+      -> 8: competition against a top-25 neurology/neurosurgery program, in-region.
+    - "FDA clears a new prostate-cancer surgical robot / therapy" -> 8: a concrete clinical
+      development for the Desai Sethi Urology Institute and Sylvester to evaluate and adopt.
+    - "Bascom Palmer publishes a study on a new glaucoma imaging technique" -> 5: flagship line,
+      but research-awareness with no decision attached — the actionability gate still pulls it down.
   # How far back to look for "new" items each run (hours). 72 = past 3 days, so a
   # Monday-morning run covers everything since Friday morning (the weekend gap).
   lookback_hours: 72

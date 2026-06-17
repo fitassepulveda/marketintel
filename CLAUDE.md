@@ -11,10 +11,14 @@ and emails an HTML digest of the top stories each weekday morning.
 
 ## Status (as of last session)
 
-- **Live and automated.** Validated end-to-end; a successful manual GitHub Actions run
-  sent real email. Scheduled weekday run is 6:07am ET (a few minutes past the hour, after
-  a top-of-hour scheduled run was silently dropped on 2026-06-16; a watchdog alerts on any
-  missed run). Yutori scouts scan at 5am ET, an hour ahead of the report.
+- **Live and automated.** Validated end-to-end; runs send real email.
+- **Scheduling is external-cron-driven (changed 2026-06-17).** GitHub's own `schedule:`
+  cron proved unreliable — it silently dropped the daily run on 2026-06-16 and 2026-06-17
+  (Actions tab showed no run; last was 06-15). The **reliable trigger is now an external
+  cron service (cron-job.org) calling the `workflow_dispatch` API** each weekday ~6:07am ET.
+  GitHub's `schedule:` cron is kept only as a free backup; a **same-day guard**
+  (`scripts/guard_skip_if_ran.py`) + a `concurrency` group ensure the briefing sends at
+  most once if both fire. Full setup in `CLOUD_SCHEDULING.md`. Yutori scouts scan at 5am ET.
 - **Provider:** Gemini, with **billing enabled** (no longer on the flaky free tier).
 - **Scouts:** 2 active competitor scouts (Baptist Health, Jackson Health), scanning daily.
 - **Recipients:** wef28@miami.edu (trimmed from three to one on 2026-06-16).
@@ -85,13 +89,20 @@ Entry point: `run_briefing.py`. Flags: `--dry-run` (build + save, don't send),
   `--restart`. Schedules first run at `scout_scan_hour_local` (5am) and asks for
   `published_date`. **Must run locally** (needs network to api.yutori.com).
 - `scripts/verify_sources.py` — checks RSS URLs. `scripts/score_report.py` — debug ranking.
-- `.github/workflows/daily-briefing.yml` — 6:07am ET weekday schedule (cron `7 10`,
-  off-the-hour to dodge GitHub's top-of-hour scheduler delays) + manual dispatch.
+- `.github/workflows/daily-briefing.yml` — primary trigger is **`workflow_dispatch`**
+  (called by the external cron service, the reliable path); a `schedule:` cron (`7 10`)
+  remains as a best-effort backup. Has `actions: read` + a `concurrency` group, and a
+  guard step that gates the real work on `should_run`.
+- `scripts/guard_skip_if_ran.py` — same-day guard. Queries the GitHub API for a
+  *successful* briefing run already today (ET); if found, emits `should_run=false` so a
+  redundant trigger is a no-op (prevents a duplicate / quiet-day double-send). **Fails
+  open** — an API error yields `should_run=true`, never suppressing a real run.
 - `scripts/watchdog.py` + `.github/workflows/briefing-watchdog.yml` — missed-run
-  backstop. At 8:12am ET weekdays (cron `12 12`, separate off-hour minute) it queries
-  the GitHub API for a *successful* briefing run dated today (ET); if none — silent
-  schedule drop or a failed run — it emails an `[ALERT]` via the same SMTP secrets.
-  Stdlib only. Alert goes to `ALERT_EMAIL_TO` secret, falling back to `SMTP_USER`.
+  backstop. Queries the GitHub API for a *successful* briefing run dated today (ET); if
+  none, emails an `[ALERT]` via the SMTP secrets. Alert goes to `ALERT_EMAIL_TO`
+  (set to `wef28@miami.edu`), falling back to `SMTP_USER`. Trigger it the same reliable
+  way (external cron → `workflow_dispatch`, ~8:12am ET); its `schedule:` cron is backup only.
+- `CLOUD_SCHEDULING.md` — the why + exact one-time setup (PAT, cron-job.org jobs, secret).
 
 ## Config (current values, all in `config/`)
 
@@ -152,12 +163,16 @@ Becker's) — terms prohibit it; use headline RSS proxies instead.
 
 - **Run manually:** `python3 run_briefing.py` (real send) / `--dry-run` (preview to
   `data/briefings/`). On the user's Mac it's `python3` (Python 3.9).
-- **Automation:** GitHub Actions runs 6:07am ET weekdays. Secrets (GEMINI_API_KEY,
-  YUTORI_API_KEY, SMTP_HOST/PORT/USER/PASS, EMAIL_FROM) are set in the repo. The dedup DB
-  (`data/intel.db`) is **committed back to the repo** after each successful run (workflow
-  step "Persist updated database", using the default GITHUB_TOKEN with `contents: write`),
-  so dedup memory is durable and shared by local + CI runs — no Actions cache. (Recipients/
-  config also come from the repo, so config changes require a push to take effect.)
+- **Automation:** an external cron service (cron-job.org) triggers the briefing via
+  `workflow_dispatch` ~6:07am ET weekdays (GitHub's `schedule:` cron is backup only — it
+  drops runs). Secrets (GEMINI_API_KEY, YUTORI_API_KEY, SMTP_HOST/PORT/USER/PASS,
+  EMAIL_FROM, ALERT_EMAIL_TO) are set in the repo; the external trigger uses a fine-grained
+  PAT with `actions: read/write` stored in cron-job.org. The dedup DB (`data/intel.db`) is
+  **committed back to the repo** after each successful run (step "Persist updated database",
+  GITHUB_TOKEN with `contents: write`). NOTE: `.gitignore` was excluding `intel.db` until
+  2026-06-17 (commit `2e9de61`) — it is now force-added/tracked, so dedup memory is durable
+  and shared by local + CI runs. (Recipients/config also come from the repo, so config
+  changes require a push to take effect.)
 - **Add competitor scouts:** `python3 scripts/setup_scouts.py --force --sources "Name1,Name2"`
   (names from sources.yaml). Each scout ≈ $0.35/scan/day ≈ $10.50/month.
 - **Email:** from um.marketintel.bot@gmail.com (Gmail App Password in SMTP_PASS).
@@ -178,18 +193,25 @@ Becker's) — terms prohibit it; use headline RSS proxies instead.
 - **GitHub token** is stored in plaintext in the repo's remote URL — recommend rotating.
 - Stale `.git/index.lock` can block git; `rm -f .git/index.lock` clears it.
 - GitHub Actions auto-pauses a schedule after 60 days of no repo activity. The daily DB
-  commit-back now counts as activity, so the schedule stays alive on its own (bonus of
-  persisting the DB in git rather than the cache).
+  commit-back counts as activity, so the schedule stays alive on its own.
+- **GitHub's `schedule:` cron silently drops/delays runs** — it skipped the daily briefing
+  entirely on 2026-06-16 and 06-17 even though the repo was active and the workflow valid.
+  Do not rely on it for delivery; the external cron → `workflow_dispatch` trigger is the
+  source of truth now (`CLOUD_SCHEDULING.md`). The guard makes the leftover backup cron safe.
 
 ## Open / next steps
 
-1. Set the `ALERT_EMAIL_TO` repo secret (watchdog alert recipient; falls back to SMTP_USER).
-   Confirm the scheduled 6:07am run delivers cleanly to wef28@miami.edu.
+1. **Finish the reliable-scheduling cutover (`CLOUD_SCHEDULING.md`).** Code is pushed,
+   but the external trigger isn't live until you: create the fine-grained PAT, set up the
+   two cron-job.org jobs (briefing 6:07am + watchdog 8:12am ET), and confirm the
+   `ALERT_EMAIL_TO` repo secret is set to `wef28@miami.edu`. Until then the daily run still
+   depends on GitHub's unreliable cron.
 2. Scale competitor scouts beyond Baptist/Jackson (uncapped_sources already lists them).
-3. Rotate the GitHub access token.
-4. DONE — DB now committed back each run (durable dedup memory + keeps the schedule alive).
-   Remaining: a small test suite for dedup/window/scoring; watch repo size as the binary
-   DB accumulates history (squash or BFG-prune if it ever gets large).
+3. Rotate the GitHub access token (still plaintext in the remote URL).
+4. Bump the workflow actions off Node 20 (checkout@v4, setup-python@v5, upload-artifact@v4)
+   before GitHub removes Node 20 from runners on 2026-09-16.
+5. Remaining hygiene: a small test suite for dedup/window/scoring; watch repo size as the
+   binary DB accumulates history (squash or BFG-prune if it ever gets large).
 
 ## Style
 
