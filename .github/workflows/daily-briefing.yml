@@ -1,15 +1,26 @@
 name: Daily Market Intelligence Briefing
 
 on:
+  # PRIMARY trigger is an external cron service (cron-job.org) calling the
+  # workflow_dispatch API each weekday morning — GitHub's own scheduler proved
+  # unreliable (it silently dropped the daily run for days; see CLOUD_SCHEDULING.md).
+  # The schedule: below is kept only as a free, best-effort BACKUP. A same-day
+  # guard (scripts/guard_skip_if_ran.py) ensures that if both triggers fire, the
+  # briefing is sent at most once.
   schedule:
     # 10:07 UTC = 6:07 AM EDT (use 11:07 UTC during EST, Nov-Mar). Weekdays only.
-    # A few minutes past the hour on purpose: top-of-hour schedules are the most
-    # contended and get delayed/dropped most often by GitHub's scheduler.
     - cron: "7 10 * * 1-5"
-  workflow_dispatch: {}   # allows manual runs from the Actions tab
+  workflow_dispatch: {}   # manual runs + external-cron trigger (the reliable path)
 
 permissions:
   contents: write   # to commit the updated database back (dedup memory)
+  actions: read     # the guard reads this workflow's recent run history
+
+# Never run two briefings at once; a queued duplicate trigger waits, then the
+# guard makes it a no-op.
+concurrency:
+  group: daily-briefing
+  cancel-in-progress: false
 
 jobs:
   briefing:
@@ -21,7 +32,15 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Guard — skip if a briefing already succeeded today
+        id: guard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python scripts/guard_skip_if_ran.py
+
       - name: Install dependencies
+        if: steps.guard.outputs.should_run == 'true'
         run: pip install -r requirements.txt
 
       # The dedup database (data/intel.db) is committed to the repo, so actions/checkout
@@ -29,6 +48,7 @@ jobs:
       # durable source of dedup memory shared by local and CI runs.
 
       - name: Run briefing pipeline
+        if: steps.guard.outputs.should_run == 'true'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -43,7 +63,7 @@ jobs:
         run: python run_briefing.py
 
       - name: Persist updated database
-        if: success()
+        if: success() && steps.guard.outputs.should_run == 'true'
         run: |
           git add -f data/intel.db
           if git diff --cached --quiet; then
@@ -57,7 +77,7 @@ jobs:
           fi
 
       - name: Upload briefing artifact
-        if: always()
+        if: always() && steps.guard.outputs.should_run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: briefing-${{ github.run_id }}
