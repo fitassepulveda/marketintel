@@ -229,9 +229,11 @@ briefing:
   # How far back to look for "new" items each run (hours). 72 = past 3 days, so a
   # Monday-morning run covers everything since Friday morning (the weekend gap).
   lookback_hours: 72
-  # Once a story has been briefed, it stays eligible (so re-running the same day
-  # reproduces the same briefing) until this many hours have passed since it was
-  # FIRST briefed; after that it's suppressed and fresh stories take its place.
+  # Re-brief scope is now CALENDAR-DAY based (see run_briefing.prioritize): a briefed story
+  # stays eligible only for the rest of the SAME local day (org.timezone), so same-day re-runs
+  # reproduce the briefing but a story NEVER repeats on a later day. (rebrief_after_hours below
+  # is the OLD rolling-window value and is no longer used — kept only for reference; the rolling
+  # window let stories briefed late one day reappear the next morning.)
   rebrief_after_hours: 24
   # For any candidate article missing a publish date, fetch the page and read the
   # date the site records (article:published_time / JSON-LD), so the 72h window

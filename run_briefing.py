@@ -14,6 +14,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from src import config, store
 from src.ingest import rss, yutori, enrich
@@ -110,11 +111,13 @@ def prioritize(con, cfg, client, use_llm: bool) -> list[dict]:
     # Pull a generous FETCH window, then keep only items PUBLISHED within the cutoff —
     # so an old article surfaced today (by a scout or feed) doesn't sneak in.
     fetch_floor = (now - timedelta(days=14)).isoformat()
-    # Stories first briefed within rebrief_after_hours stay eligible (same-day re-runs
-    # reproduce the same briefing); older briefed stories are suppressed so fresh news
-    # surfaces. Default 24h if unset.
-    rebrief_hours = settings["briefing"].get("rebrief_after_hours", 24)
-    briefed_after = (now - timedelta(hours=rebrief_hours)).isoformat()
+    # A briefed story is eligible only for the REST OF THE SAME CALENDAR DAY (org timezone):
+    # re-running the briefing later the same day reproduces it, but it NEVER repeats on a later
+    # day. (The old rolling-24h window let a story briefed late one day reappear the next morning
+    # when two runs landed <24h apart — which is exactly the day-to-day repeat we don't want.)
+    org_tz = ZoneInfo(settings["org"].get("timezone", "America/New_York"))
+    briefed_after = datetime.now(org_tz).replace(
+        hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()
     rows = [dict(r) for r in store.candidates_recent(con, fetch_floor, briefed_after)]
     # Recover real publish dates for undated items (RSS + scouts) by reading the
     # article page's metadata, so the 72h window filters on a true publish date
