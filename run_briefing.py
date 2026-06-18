@@ -156,8 +156,16 @@ def prioritize(con, cfg, client, use_llm: bool) -> list[dict]:
     else:
         scores = [(5.0, "llm disabled")] * len(to_score)
 
+    floor_rules = settings["briefing"].get("forced_floor_rules", [])
     kept = []
     for art, (llm_score, why) in zip(to_score, scores):
+        # Deterministic config-driven floor (e.g. FIU + Baptist in one sentence -> 9),
+        # applied after the LLM. Never lowers a higher LLM score.
+        text = f'{art.get("title", "")}. {art.get("summary") or ""} {art.get("content") or ""}'
+        floor, reason = scoring.forced_floor(text, floor_rules)
+        if floor is not None and floor > llm_score:
+            why = f"[Auto-floor {floor:g}] {reason}" + (f" (LLM had: {why})" if why else "")
+            llm_score = floor
         comp = scoring.composite(weights, art, llm_score)  # area-light, LLM-led
         art.update(llm_score=llm_score, llm_rationale=why, composite_score=comp)
         store.save_scores(con, art["id"], llm_score, why, comp)
@@ -183,10 +191,28 @@ def prioritize(con, cfg, client, use_llm: bool) -> list[dict]:
                                           weights.get("dedup_token_overlap", 0.6))
         log.info("Dedup: keyword fallback")
     kept = deduped
-    final = kept[: settings["briefing"]["max_stories"]]
-    log.info("Prioritization: %d scored, %d above threshold, %d after dedup -> top %d",
-             len(to_score), before, len(kept), len(final))
-    return final
+    kept.sort(key=lambda a: a["composite_score"], reverse=True)  # dedup may reorder
+
+    # Selection: include EVERY story at/above select_threshold (composite), but never
+    # fewer than min_stories nor more than max_stories. Replaces a fixed top-N — a strong
+    # news day surfaces more (up to the cap); a quiet day still shows a baseline. If fewer
+    # than min_stories clear the bar, pad with the next-highest still-qualified (>= the
+    # basic score_threshold floor) items; if none qualify at all, the quiet-day note fires.
+    bcfg = settings["briefing"]
+    select_threshold = bcfg.get("select_threshold", 90)
+    min_stories = bcfg.get("min_stories", 5)
+    max_stories = bcfg.get("max_stories", 12)
+    strong = [a for a in kept if a["composite_score"] >= select_threshold]
+    final = strong[:max_stories] if len(strong) >= min_stories else kept[:min_stories]
+    # The next-closest stories that just missed the cut — surfaced as a title+link+score
+    # comparison list at the bottom of the briefing. kept is sorted desc and `final` is its
+    # prefix, so the runners-up are simply the next slice.
+    runners = kept[len(final):len(final) + 5]
+    log.info("Prioritization: %d scored, %d above floor(%s), %d after dedup, %d at/above %s "
+             "-> %d selected (min %d / max %d), %d runners-up",
+             len(to_score), before, weights["score_threshold"], len(kept),
+             len(strong), select_threshold, len(final), min_stories, max_stories, len(runners))
+    return final, runners
 
 
 def _send_html(settings, subject: str, body_html: str, dry_run: bool,
@@ -228,7 +254,7 @@ def main():
     ingest(con, cfg, run_date, use_yutori=not args.no_yutori)
 
     client = LLMClient(cfg["settings"]["llm"]["provider"]) if use_llm else None
-    top = prioritize(con, cfg, client, use_llm)
+    top, runners = prioritize(con, cfg, client, use_llm)
 
     settings = cfg["settings"]
     date_h = datetime.now().strftime("%A, %B %d, %Y")
@@ -283,8 +309,10 @@ def main():
     # dates are matched from the DB rows (by url, then title). Plain text saved too.
     org_short = settings["org"].get("short_name", settings["org"]["name"])
     top_n = settings["briefing"].get("digest_top_n", 5)
-    digest = emailer.render_digest(briefing["stories"], date_h, org_short, articles=top, top_n=top_n)
-    digest_html = emailer.render_digest_html(briefing["stories"], date_h, org_short, articles=top, top_n=top_n)
+    digest = emailer.render_digest(briefing["stories"], date_h, org_short, articles=top, top_n=top_n,
+                                   runners=runners)
+    digest_html = emailer.render_digest_html(briefing["stories"], date_h, org_short, articles=top,
+                                             top_n=top_n, runners=runners)
 
     (out_dir / f"{run_date}.html").write_text(html, encoding="utf-8")
     (out_dir / f"{run_date}.json").write_text(json.dumps(briefing, indent=2), encoding="utf-8")

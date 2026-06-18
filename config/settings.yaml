@@ -11,7 +11,14 @@ org:
     Florida's only NCI-designated cancer center), neurology/neurosurgery (top-25 nationally),
     urology (Desai Sethi Urology Institute), transplant (Miami Transplant Institute, one of
     the nation's largest), and rehabilitation/spinal-cord (The Miami Project to Cure Paralysis).
-    Strategic focus: growth, academic medicine, high-value service lines, payer leverage.
+    Scale (FY25): ~1.7M annual patient visits, 700 beds, 40 locations across Miami-Dade/Broward/
+    Palm Beach/Collier, 14,628 staff, 2,700+ providers; flagship hospital is UHealth Tower.
+    Strategic direction: aggressive GROWTH/expansion (UHealth SoLé Mia in North Miami/Aventura with
+    Hospital for Special Surgery, UHealth Doral, UHealth Pinecrest, the Kenneth C. Griffin Cancer
+    Research Building, Tower renovation, Bascom Palmer Abu Dhabi); academic medicine + RESEARCH ($360M
+    funding incl. $178.8M NIH — heavy federal-funding exposure); AI in medicine (200+ projects, top-10%
+    adopter nationally); payer leverage (e.g. an active UnitedHealthcare contract negotiation);
+    workforce/talent; key partnerships (Jackson Health, HSS, the VA, Siemens, Labcorp).
   region: "South Florida (Miami-Dade, Broward, Palm Beach)"
   timezone: "America/New_York"      # used when scheduling Yutori scouts
 
@@ -34,16 +41,30 @@ key_questions:
     Is there emerging reputation risk or public narrative risk?
 
 briefing:
-  # Extra scoring direction injected into the LLM relevance prompt (tune freely, no code
-  # change). Calibrated 2026-06-17 to UHealth leadership's own review of 41 scored stories
-  # (Keep / Priority / Notes in prioritization_review.xlsx). Two gates (relevance, then
-  # actionability), full-range scoring, current priority service lines, and worked examples
-  # taken from that review. Revisit the "current priorities" line as service-line focus shifts.
+  # Extra scoring direction injected into the LLM relevance prompt (tune freely, no code change).
+  # Frame (2026-06-17): EXEC-facing — score by IMPACT ON UHEALTH'S STRATEGY & LONG-TERM DIRECTION,
+  # fusing external competitive intel with operational/financial/strategic impact. Grounded in
+  # UHealth's real profile (umiamihealth.org: growth/expansion, research/NIH exposure, AI, payer
+  # leverage, workforce, flagship lines) + leadership's review (prioritization_review.xlsx).
+  # NOTE: pharmacy/drug-pricing/PBM is explicitly NOT a priority; exclude UHealth's OWN news.
   relevance_guidance: |
-    HOW TO PRIORITIZE — calibrated to how UHealth leadership actually scored a sample of
-    these stories. Use the FULL 0-10 range and be STRICT: most general policy or
-    industry-trend items belong at 3-5, not 7-9. Reserve 8-10 for news that is both directly
-    relevant to UHealth AND actionable. Apply two gates first, then place on the scale.
+    HOW TO PRIORITIZE — the audience is UHealth's EXECUTIVE team. Score each story by its
+    IMPACT ON UHEALTH'S STRATEGY AND LONG-TERM DIRECTION. This fuses external competitive/market
+    intelligence WITH operational, financial, and strategic impact — the question is not merely
+    "is this about a competitor?" but "does this materially affect where UHealth is going: its
+    growth, competitive position, finances/reimbursement, research engine, operations, workforce,
+    or reputation?" A story can score high for pure operational/strategic impact even with no
+    competitor in it (e.g. a federal research-funding cut), and a competitor item scores high
+    because of what it implies for UHealth's strategy.
+
+    UHealth is South Florida's ONLY academic medical center (University of Miami / Miller School).
+    Its strategic priorities right now: aggressive GROWTH/expansion across South Florida; academic
+    medicine + RESEARCH (large NIH/federal exposure); flagship clinical service lines; AI in
+    medicine; payer/reimbursement leverage; and workforce/talent. Use those as the lens.
+
+    Use the FULL 0-10 range and be STRICT: most general policy or industry-trend items belong at
+    3-5, not 7-9. Reserve 8-10 for news with clear, material impact on the strategy/direction
+    above that leadership can act on. Apply the gates below, then place on the scale.
 
     GATE 1 — DIRECTLY RELEVANT TO UHEALTH? UHealth is an academic health system and care
     provider in South Florida: it runs hospitals, clinics, and a medical school. It does NOT
@@ -57,47 +78,107 @@ briefing:
     and routine-regulatory-color pieces are NOT actionable on their own — score them 3-5 even
     when well-written and accurate. Opinion/editorial pieces are excluded entirely (score 1).
 
-    SCORES HIGH (8-10):
-    - A competitor's concrete capital, capacity, M&A, partnership, or service-line move in
-      South Florida — a new hospital/ER/institute, a major philanthropic gift, a system
-      partnership. These bear directly on UHealth's growth, capacity, recruiting, and referrals.
-    - News touching UHealth's BIGGEST / flagship service lines — a policy change,
-      reimbursement shift, competitor entry, or clinical/technology development bearing on any
-      of them. In rough order of institutional prominence (2025 U.S. News + strategic focus):
-      OPHTHALMOLOGY (Bascom Palmer Eye Institute — ranked #1 in the U.S., the marquee program);
-      ONCOLOGY / cancer incl. immunotherapy (Sylvester — South Florida's only NCI-designated
-      center); NEUROLOGY / NEUROSURGERY (top-25 nationally); UROLOGY (Desai Sethi Urology
-      Institute); TRANSPLANT (Miami Transplant Institute, one of the nation's largest); and
-      REHABILITATION / spinal-cord & paralysis (The Miami Project). A development in one of
-      these — especially ophthalmology, oncology, or transplant — should score high.
-    - Cross-cutting policy priority right now: PHARMACY & drug-pricing (Medicare price
-      negotiation, PBM regulation), which directly affects the service lines above —
-      prioritize it.
-    - Academic-medicine, research, or workforce-pipeline competition (a rival launching an
-      academy, research institute, or training program).
-    - Concrete, specific innovation/AI with a real deployment, vendor, or measured result that
-      UHealth could adopt — NOT generic "AI is transforming healthcare" commentary.
+    GATE 3 — JUDGE AGAINST UHEALTH'S EXISTING POSITION. Relevance is a real GAP, THREAT, or
+    OPPORTUNITY given what UHealth already IS — not a topical keyword match. UHealth is already
+    strong in some areas (e.g. the talent pipeline via the Miller School), so a generic story on
+    a topic where UHealth is already strong is NOT a priority for it. Likewise a "priority" topic
+    (AI, research) only matters when the specific item actually touches UHealth — do not surface
+    something just because it shares a keyword with a UHealth priority. Ask "does this change
+    UHealth's strategy or position?", not "does it mention a topic UHealth cares about?"
+
+    NOT a standalone priority: PHARMACY / drug-pricing / PBM / insurer policy and litigation.
+    UHealth is a care provider, not a pharmacy, PBM, or insurer. Score these ONLY on direct
+    UHealth impact via the gates above — a PBM lawsuit or a drug-pricing rule is general (3-5)
+    or, if it's purely another company's fight, low (2-3). Do not boost an item just because
+    it involves drugs, pharmacy, or PBMs.
+
+    EXTERNAL INTELLIGENCE ONLY — EXCLUDE UHEALTH'S OWN NEWS. The audience is UHealth's own
+    executive team; they already know their own announcements. Score 1-2 (drop) anything that
+    is ABOUT UHealth or its own institutes/people — e.g. a gift, milestone, hire, opening,
+    ranking, study, or fundraiser at Sylvester Comprehensive Cancer Center, Bascom Palmer Eye
+    Institute, Desai Sethi Urology Institute, the Miami Transplant Institute, UHealth Tower,
+    the Miller School of Medicine, or The Miami Project. The flagship service lines above are
+    a LENS for spotting EXTERNAL developments (a competitor, a policy, a payer, a new
+    technology) that affect those lines — NOT a reason to surface UHealth's own press. Sole
+    exception: an external REPUTATION RISK / negative narrative about UHealth that leadership
+    would need to respond to.
+
+    SCORES HIGH (8-10) — material impact on one of these strategic vectors:
+    - GROWTH / COMPETITIVE FOOTPRINT: a competitor's concrete capital, capacity, M&A,
+      partnership, or service-line move in South Florida (new hospital/ER/institute/ambulatory
+      center, a major gift, a system partnership) — especially in UHealth's expansion zones
+      (North Miami/Aventura, Doral, Pinecrest, west Miami-Dade). Bears on growth, capacity,
+      recruiting, referrals.
+    - FEDERAL/STATE FUNDING & POLICY for academic medicine: NIH / research-grant funding changes
+      (UHealth runs ~$178.8M NIH), Medicare/Medicaid reimbursement, 340B, graduate medical
+      education, academic-medical-center policy. Big financial/strategic exposure — score high.
+    - PAYER / REIMBURSEMENT leverage affecting UHealth's own contracts (a major payer's network,
+      reimbursement, or denial-policy moves — cf. the live UnitedHealthcare negotiation). This is
+      UHealth's payer leverage, NOT pharma/PBM.
+    - FLAGSHIP SERVICE LINES — an EXTERNAL policy, reimbursement, competitor, or clinical/tech
+      development bearing on: OPHTHALMOLOGY (Bascom Palmer, #1 in US), ONCOLOGY/cancer (Sylvester),
+      NEUROLOGY/NEUROSURGERY, UROLOGY (Desai Sethi), TRANSPLANT, CARDIAC, REHAB (Miami Project).
+    - WORKFORCE / TALENT: nurse and physician labor markets, unionization, major competitor
+      recruitment (UHealth has 14,628 staff; nursing Magnet). Score on a real GAP or THREAT —
+      UHealth is already strong on the training pipeline (Miller School), so generic "health
+      systems are building talent pipelines" trend pieces are mid/low for UHealth, not high.
+    - AI / HEALTH-TECH (GATED): score high ONLY when it's something UHealth — a care provider /
+      academic health system — could actually adopt, OR a PEER HEALTH SYSTEM (anywhere; geography
+      not required for this) is concretely deploying it. AI being a UHealth priority does NOT mean
+      surface every AI story. Score LOW (2-4): biotech/pharma AI (UHealth is not a biotech or
+      drugmaker), pieces about a specific vendor UHealth doesn't use, and generic "AI is
+      transforming healthcare" commentary. The test is "could UHealth act on or adopt this?", not
+      "does it mention AI?"
+    - PARTNERSHIP ECOSYSTEM: moves by or affecting Jackson Health, Hospital for Special Surgery,
+      the VA, Siemens, or Labcorp.
 
     MIDDLE / "slow-day" tier (5-6): solid but general or non-urgent — a competitor leadership
     change, an early-stage policy proposal, a single FDA approval. Worth including only when
-    nothing more actionable is available that day.
+    nothing more actionable is available that day. ALSO HERE — "keep an eye on" items, good for
+    exec AWARENESS on a slow day but NOT high scorers and NOT strategic vectors: healthcare
+    CYBERSECURITY / patient-data breaches (UHealth holds lots of patient data) and RESEARCH
+    funding/policy color (UHealth is a research institution). Surface when quiet; never high on
+    their own.
 
     LOW (1-4): not actionable; general market/industry trends; third-party disputes without
     direct UHealth impact; routine forecasts with no active threat; opinion pieces; awareness-only.
+    Score 1-3 — near-zero strategic value even though healthcare-related: patient-facing
+    human-interest / cancer-survivorship / wellness pieces, and routine local public-health
+    warnings (e.g. a state opioid advisory). These do nothing for strategic direction.
 
     EXCEPTION: a genuinely major public-health or policy development of broad importance
     (e.g. a global pandemic agreement, a region-wide health emergency) may score high even if
     "general," because leadership must be aware of it.
+
+    DAILY-REVIEW CALIBRATION (real exec notes, 2026-06-17) — apply this judgment:
+    - "Yale New Haven Health System deploys Rad AI across the system" -> 8: a PEER health system
+      concretely deploying clinical AI — relevant even though out-of-region.
+    - "How a biotech turned a trial failure into an AI platform" -> 3: UHealth is not a biotech;
+      AI being a priority does NOT make this relevant.
+    - "Is Abridge's 'patient-centered' claim a bridge too far?" -> 3: a specific vendor UHealth
+      does not use — not relevant.
+    - "How health systems are building clinical talent pipelines" -> 5: general, and UHealth is
+      already strong here (Miller School) — not a priority for UHealth specifically.
+    - "More Americans Are Surviving Cancer, But the Mental Health Toll Lingers" -> 2: patient-facing
+      human-interest; does nothing for strategic direction.
+    - "Florida DOH issues warning on a dangerous opioid" -> 3: routine local public-health
+      awareness, not strategic.
+    - "IRhythm discloses patient data stolen via a third-party app" -> 6: cybersecurity / patient-
+      data awareness — keep an eye on; fine on a slow day, not high.
+    - "CBO asks for more No Surprises Act research" -> 5: research-policy color; mildly relevant
+      (UHealth is a research institution), slow-day awareness only.
 
     WORKED EXAMPLES (title -> score: reason) — these are UHealth's own judgments:
     - "FIU Breaks Ground on $158M Medical Center in Baptist Partnership" -> 10: competitor
       capital + capacity + academic move, in-region.
     - "Baptist Health Foundation Announces Historic $100M Gift" -> 10: major competitor capital event.
     - "New Emergency Room at Jackson Memorial Hospital Now Open" -> 10: competitor capacity expansion.
-    - "Medicare drug price rule may target under-the-skin cancer immunotherapies" -> 9: hits a
-      top UHealth service line (oncology/immunotherapy) with direct policy consequences.
-    - "Express Scripts files suit to challenge Tennessee PBM law" -> 9: pharmacy/PBM policy, a
-      current priority area.
+    - "Medicare drug price rule may target under-the-skin cancer immunotherapies" -> 5:
+      drug-pricing policy is NOT a standalone priority; mid at most unless it concretely
+      changes how UHealth delivers or is paid for cancer care.
+    - "Express Scripts / PCMA sue to block a state PBM law" -> 3: a third-party PBM/insurer
+      legal fight. UHealth is a provider, not a PBM or insurer, so there is no direct,
+      immediate impact — this should NOT be prioritized highly (GATE 1).
     - "Cedar's voice AI agent has handled nearly 400K patient calls since launch" -> 8:
       concrete, proven operational AI UHealth could act on (NOT a general AI-trend piece).
     - "Miami Dade College & Jackson Health launch Health Science Collegiate Academy" -> 8:
@@ -106,6 +187,8 @@ briefing:
       newsworthy but not actionable for UHealth.
     - "Big money is pouring into South Florida health systems — what it means for patients" -> 5:
       market-trend overview, not a specific actionable development.
+    - "DCC XVI Raises $18 Million for Sylvester Comprehensive Cancer Center" -> 1: this is
+      UHealth's OWN cancer center's philanthropy — internal news leadership already knows; drop.
     - "Optum Rx, FTC poised for settlement in insulin pricing case" -> 3: a third party's
       dispute, no direct or immediate UHealth impact.
     - "Why one health system invested in its PBM as GLP-1 costs surged" -> 3: not relevant —
@@ -125,8 +208,24 @@ briefing:
       -> 8: competition against a top-25 neurology/neurosurgery program, in-region.
     - "FDA clears a new prostate-cancer surgical robot / therapy" -> 8: a concrete clinical
       development for the Desai Sethi Urology Institute and Sylvester to evaluate and adopt.
-    - "Bascom Palmer publishes a study on a new glaucoma imaging technique" -> 5: flagship line,
-      but research-awareness with no decision attached — the actionability gate still pulls it down.
+    - "Bascom Palmer (UHealth's OWN institute) publishes a new glaucoma imaging study" -> 1:
+      UHealth's own news — leadership already knows it; this is not external intelligence.
+    - "A rival academic eye center reports a glaucoma imaging breakthrough" -> 5: external and
+      relevant to the field, but research-awareness with no decision attached for UHealth.
+
+    STRATEGIC-IMPACT EXAMPLES (illustrative — beyond competitors; score on strategy/direction):
+    - "NIH proposes capping indirect-cost reimbursement on research grants" -> 9: direct hit to
+      UHealth's research engine and finances (~$178.8M NIH).
+    - "A national health system opens a new ambulatory campus in Aventura / Doral" -> 9: direct
+      competition inside UHealth's own expansion zones.
+    - "Major payer moves to drop or sharply cut academic-medical-center contracts" -> 8: hits
+      UHealth's reimbursement and payer leverage (cf. the UnitedHealthcare negotiation).
+    - "Florida moves to cut Medicaid eligibility / DSH payments" -> 8: affects UHealth's patient
+      mix, volumes, and margins as the region's academic safety-net-adjacent system.
+    - "South Florida nurses unionize / a regional nurse-staffing shortage deepens" -> 7:
+      workforce/operational impact on a 14,628-staff system.
+    - "A rival lands a major NIH center grant or recruits a star researcher" -> 7: research and
+      talent competition for an academic medical center.
   # How far back to look for "new" items each run (hours). 72 = past 3 days, so a
   # Monday-morning run covers everything since Friday morning (the weekend gap).
   lookback_hours: 72
@@ -139,15 +238,38 @@ briefing:
   # filters on a real publish date instead of fetch time. Persisted (fetched once).
   enrich_publish_dates: true
   enrich_timeout_seconds: 10
-  # Top N must-include stories the LLM ranks and we keep
-  max_stories: 5
+  # Story selection (replaces a fixed top-N): include EVERY story whose composite score is
+  # at/above select_threshold, but never fewer than min_stories nor more than max_stories.
+  # With current weights composite == LLM-relevance x 10, so select_threshold 90 == an LLM
+  # relevance of 9/10. A strong news day surfaces more (up to max); a quiet day still shows
+  # a baseline of min. score_threshold in weights.yaml (55) is still the basic floor used
+  # to pad up to min_stories and to decide a true quiet day.
+  select_threshold: 90
+  min_stories: 5
+  max_stories: 12
   # Top-line takeaways count
   takeaways: 5
   subject_prefix: "Market Intelligence Briefing"
-  # Plain-text digest (current email output): how many stories, and who gets it.
-  digest_top_n: 5
+  # How many stories the email digest renders. Keep >= max_stories so selected stories
+  # aren't truncated in the email.
+  digest_top_n: 12
   digest_recipients:
     - "wef28@miami.edu"
+
+  # Deterministic score FLOORS applied after LLM scoring (src/prioritize/scoring.forced_floor,
+  # applied in run_briefing.prioritize). A rule fires when a SINGLE sentence of the article
+  # (title + summary) contains at least one term from EVERY group in same_sentence_all (OR
+  # within a group, AND across groups). The article's LLM score is then floored at `score`
+  # (never lowered below an already-higher LLM score). `reason` is recorded in the rationale.
+  forced_floor_rules:
+    # Baptist is NOT an academic medical center today but is moving into academic medicine via
+    # FIU's Herbert Wertheim College of Medicine — a direct threat to UHealth's academic-medical
+    # positioning. Any sentence naming both FIU and Baptist is auto-floored to 9.
+    - same_sentence_all:
+        - ["FIU", "Florida International University"]
+        - ["Baptist"]
+      score: 9
+      reason: "FIU + Baptist co-mention: Baptist is expanding into academic medicine via FIU's medical school — a direct strategic threat to UHealth's academic-medical positioning."
 
 llm:
   # "gemini" (free tier: aistudio.google.com) or "anthropic" (console.anthropic.com)

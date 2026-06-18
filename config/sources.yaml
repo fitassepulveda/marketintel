@@ -70,7 +70,6 @@ public_health_risk:
       # WARNING: feed is live but lastBuildDate is Aug 2023 - may be abandoned.
       # If verify_sources shows no recent items, browse https://tools.cdc.gov/podcasts/rss.asp for a current feed ID.
   - { name: WHO News,            type: rss,    url: "https://www.who.int/rss-feeds/news-english.xml" }
-  - { name: NOAA NHC Atlantic,   type: rss,    url: "https://www.nhc.noaa.gov/index-at.xml" }  # quiet outside active storms - 1 placeholder item off-season is normal
   - { name: Florida Dept of Health, type: rss, url: "https://www.floridahealth.gov/feed/" }  # site moved to WordPress - feed verified live
 
 reputation_media:

@@ -77,6 +77,16 @@ def _fmt_date(value: str | None) -> str:
         return s[:10] if len(s) >= 10 else s
 
 
+def _fmt_score(value) -> str:
+    """Format an LLM relevance score (0-10) for display, or '' if missing."""
+    if value is None or value == "":
+        return ""
+    try:
+        return f"{float(value):g}"
+    except (TypeError, ValueError):
+        return ""
+
+
 def _norm_url(u: str | None) -> str:
     """Normalize a URL for matching (drop scheme, www, query, fragment, trailing /)."""
     if not u:
@@ -90,8 +100,46 @@ def _norm_url(u: str | None) -> str:
     return u
 
 
+def _runner_lines_text(runners: list[dict] | None) -> list[str]:
+    """Plain-text 'just missed the cut' comparison list — title, score, link only."""
+    if not runners:
+        return []
+    out = ["", "—" * 30, "ALSO CONSIDERED — closest stories that did not make the cut (for comparison):", ""]
+    for a in runners:
+        sc = _fmt_score(a.get("llm_score"))
+        tag = f" (LLM relevance {sc}/10)" if sc else ""
+        out.append(f'- {a.get("title", "")}{tag}\n  {a.get("url", "")}')
+    return out
+
+
+def _runners_html(runners: list[dict] | None) -> str:
+    """HTML 'just missed the cut' comparison list — title (linked), score, source only."""
+    if not runners:
+        return ""
+    rows = [
+        '<div style="margin-top:30px;border-top:1px solid #ddd;padding-top:14px">'
+        '<p style="color:#1F3864;font-size:13px;font-weight:bold;margin:0 0 8px">'
+        'Also considered — closest stories that didn\'t make the cut '
+        '<span style="color:#888;font-weight:normal">(for comparison)</span></p>'
+    ]
+    for a in runners:
+        sc = _fmt_score(a.get("llm_score"))
+        tag = (f'<span style="color:#888">&nbsp;·&nbsp;LLM relevance {sc}/10</span>') if sc else ""
+        src = escape(str(a.get("source", "") or ""))
+        src_txt = f'<span style="color:#aaa">&nbsp;·&nbsp;{src}</span>' if src else ""
+        url = escape(str(a.get("url", "") or "#"))
+        title = escape(str(a.get("title", "")))
+        rows.append(
+            f'<p style="margin:5px 0;font-size:13px">'
+            f'<a href="{url}" style="color:#1F3864">{title}</a>{tag}{src_txt}</p>'
+        )
+    rows.append("</div>")
+    return "".join(rows)
+
+
 def render_digest(stories: list[dict], date_str: str, org_short: str,
-                  articles: list[dict] | None = None, top_n: int = 5) -> str:
+                  articles: list[dict] | None = None, top_n: int = 5,
+                  runners: list[dict] | None = None) -> str:
     """Plain-text digest of the top N stories in the per-story bullet format.
 
     `articles` are the source DB rows; we match each story to one (by URL, then by
@@ -101,7 +149,8 @@ def render_digest(stories: list[dict], date_str: str, org_short: str,
     by_url, by_title = {}, {}
     for a in articles:
         meta = {"fetched": a.get("fetched"), "published": a.get("published"),
-                "source": a.get("source"), "area": a.get("area")}
+                "source": a.get("source"), "area": a.get("area"),
+                "llm_score": a.get("llm_score")}
         if a.get("url"):
             by_url[_norm_url(a["url"])] = meta
         if a.get("title"):
@@ -119,9 +168,14 @@ def render_digest(stories: list[dict], date_str: str, org_short: str,
         area_label = AREA_LABELS.get(area, area)
         label = s.get("coverage_label") or f'{src or "source"} coverage'
         url = s.get("url", "")
+        score = _fmt_score(meta.get("llm_score") if meta.get("llm_score") is not None
+                           else s.get("llm_score"))
+        title_line = s.get("title", "")
+        if score:
+            title_line = f'{title_line}  (LLM relevance {score}/10)'
         out += [
             f'[{area_label}]  ·  {src}',
-            s.get("title", ""),
+            title_line,
             "",
             f'* What happened: {s.get("what_happened", "")}',
             f'* Why it matters to {org_short}: {s.get("why_it_matters", "")}',
@@ -132,17 +186,21 @@ def render_digest(stories: list[dict], date_str: str, org_short: str,
             f'* Published Date: {published}',
             "",
         ]
+    for line in _runner_lines_text(runners):
+        out.append(line)
     return "\n".join(out).rstrip() + "\n"
 
 
 def render_digest_html(stories: list[dict], date_str: str, org_short: str,
-                       articles: list[dict] | None = None, top_n: int = 5) -> str:
+                       articles: list[dict] | None = None, top_n: int = 5,
+                       runners: list[dict] | None = None) -> str:
     """HTML version of the digest — same content, with larger article titles."""
     articles = articles or []
     by_url, by_title = {}, {}
     for a in articles:
         meta = {"fetched": a.get("fetched"), "published": a.get("published"),
-                "source": a.get("source"), "area": a.get("area")}
+                "source": a.get("source"), "area": a.get("area"),
+                "llm_score": a.get("llm_score")}
         if a.get("url"):
             by_url[_norm_url(a["url"])] = meta
         if a.get("title"):
@@ -165,13 +223,20 @@ def render_digest_html(stories: list[dict], date_str: str, org_short: str,
         area_label = AREA_LABELS.get(area, area)
         label = s.get("coverage_label") or f'{src or "source"} coverage'
         url = escape(s.get("url", ""))
+        score = _fmt_score(meta.get("llm_score") if meta.get("llm_score") is not None
+                           else s.get("llm_score"))
+        score_html = (
+            f'<span style="font-size:13px;color:#6b7a90;font-weight:normal;white-space:nowrap">'
+            f'&nbsp;&nbsp;<span style="background:#EAF0F8;color:#1F3864;padding:1px 7px;'
+            f'border-radius:10px">LLM relevance {score}/10</span></span>'
+        ) if score else ""
         parts.append(
             f'<p style="margin:26px 0 2px">'
             f'<span style="background:#1F3864;color:#fff;font-size:11px;font-weight:bold;'
             f'padding:2px 8px;border-radius:3px;letter-spacing:.03em">{escape(area_label)}</span>'
             f'<span style="color:#888;font-size:12px">&nbsp;&nbsp;{escape(src)}</span></p>'
             f'<h2 style="font-size:21px;color:#1F3864;margin:2px 0 8px">'
-            f'{escape(s.get("title", ""))}</h2>'
+            f'{escape(s.get("title", ""))}{score_html}</h2>'
             f'<p style="margin:5px 0"><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
             f'<p style="margin:5px 0"><b>Why it matters to {escape(org_short)}:</b> '
             f'{escape(s.get("why_it_matters", ""))}</p>'
@@ -183,6 +248,7 @@ def render_digest_html(stories: list[dict], date_str: str, org_short: str,
             f'<p style="margin:5px 0;color:#666;font-size:12px">'
             f'Captured: {captured} &nbsp;·&nbsp; Published: {published}</p>'
         )
+    parts.append(_runners_html(runners))
     parts.append("</div>")
     return "".join(parts)
 

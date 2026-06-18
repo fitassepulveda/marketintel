@@ -5,6 +5,36 @@ import math
 import re
 
 
+def _term_in_sentence(term: str, sentence: str) -> bool:
+    """Whole-word, case-insensitive match (so 'FIU' / 'Baptist' don't match inside words)."""
+    return re.search(r"\b" + re.escape(term) + r"\b", sentence, re.IGNORECASE) is not None
+
+
+def forced_floor(text: str, rules: list) -> tuple[float | None, str]:
+    """Deterministic score floor applied AFTER LLM scoring (config: briefing.forced_floor_rules).
+
+    Each rule has `same_sentence_all`: a list of term-groups. A rule fires if a SINGLE
+    sentence of `text` contains at least one term from EVERY group (groups are OR within,
+    AND across). Returns (highest firing `score`, its `reason`), or (None, "").
+    e.g. groups [["FIU","Florida International University"], ["Baptist"]] fire on a sentence
+    naming FIU (or its full name) AND Baptist."""
+    if not rules or not text:
+        return None, ""
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    best_score, best_reason = None, ""
+    for rule in rules:
+        groups = rule.get("same_sentence_all") or []
+        score = rule.get("score")
+        if not groups or score is None:
+            continue
+        for s in sentences:
+            if all(any(_term_in_sentence(t, s) for t in group) for group in groups):
+                if best_score is None or score > best_score:
+                    best_score, best_reason = float(score), rule.get("reason", "")
+                break
+    return best_score, best_reason
+
+
 def _cosine(u: list, v: list) -> float:
     dot = sum(x * y for x, y in zip(u, v))
     nu = math.sqrt(sum(x * x for x in u))
