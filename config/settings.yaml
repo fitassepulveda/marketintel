@@ -266,9 +266,13 @@ briefing:
       - "fxs1141@miami.edu"
     test:                               # test sends — just you
       - "wef28@miami.edu"
-  # ACTIVE list the briefing actually emails. Currently: TEST (wef28 only).
+  # ACTIVE list the briefing actually emails. Currently: PRODUCTION (full leadership list).
   digest_recipients:
     - "wef28@miami.edu"
+    - "jakeherman@miami.edu"
+    - "psharma@miami.edu"
+    - "cjvonherrath@miami.edu"
+    - "fxs1141@miami.edu"
 
   # Deterministic score FLOORS applied after LLM scoring (src/prioritize/scoring.forced_floor,
   # applied in run_briefing.prioritize). A rule fires when a SINGLE sentence of the article
