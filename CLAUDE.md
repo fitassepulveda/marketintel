@@ -21,8 +21,15 @@ and emails an HTML digest of the top stories each weekday morning.
   most once if both fire. Full setup in `CLOUD_SCHEDULING.md`. Yutori scouts scan at 5am ET.
 - **Provider:** Gemini, with **billing enabled** (no longer on the flaky free tier).
 - **Scouts:** 2 active competitor scouts (Baptist Health, Jackson Health), scanning daily.
-- **Recipients:** wef28@miami.edu (trimmed from three to one on 2026-06-16).
+- **Recipients (2026-06-18):** wef28, jakeherman, psharma, cjvonherrath, fxs1141 @miami.edu (5).
+- **Prioritization overhauled (2026-06-17/18).** Scoring is now an EXEC-facing
+  "impact on UHealth's strategy & long-term direction" rubric (three gates, seven strategic
+  vectors, hard exclusions, deterministic floors, example-calibrated). It lives entirely in
+  `config/settings.yaml → briefing.relevance_guidance` — that block is the scoring brain.
+  Full inventory in `PRIORITIZATION_CHANGELOG.md`. See "Prioritization (current)" below.
 - All work committed and pushed to `github.com/fitassepulveda/marketintel` (branch `main`).
+  NOTE: the CI bot auto-commits `data/intel.db` on each run, so the remote moves ahead often
+  — a manual push usually needs `git checkout -- data/intel.db && git pull --no-rebase` first.
 
 ## Pipeline (current)
 
@@ -36,17 +43,21 @@ Yutori "scouts" ─────────┘        │
                                   v
         per-source cap (max_per_source, most-recent kept; competitors exempt)
                                   v
-        LLM relevance scoring 0-10 vs each area's key question (Gemini, temp 0)
+        LLM relevance scoring 0-10 (Gemini, temp 0) vs the relevance_guidance rubric
                                   v
-        composite = source·0.0 + category·0.0 + llm·1.0  ->  currently 100% LLM relevance
-        (weights live in weights.yaml; were 0.2/0.3/0.5 originally, tuned to pure LLM)
+        deterministic FORCED-FLOOR rules (e.g. FIU+Baptist same-sentence -> >=9), then
+        composite = llm·10 (source/category weights still 0.0 -> 100% LLM relevance)
                                   v
-        drop below score_threshold (55) -> sort -> SEMANTIC dedup (embeddings) -> top N
+        drop below score_threshold (55) -> sort -> SEMANTIC dedup (embeddings)
                                   v
-        LLM synthesis (Gemini) -> per-story narrative JSON
+        SELECT: every story with composite >= 90, min 5, max 12  (was a fixed top-5)
                                   v
-        HTML digest email via SMTP (+ files saved to data/briefings/)
-        If nothing qualifies: a short "quiet-day" email is sent instead of silence.
+        LLM synthesis (Gemini) -> per-story narrative JSON (watch_next now includes a
+        model-judged time horizon)
+                                  v
+        HTML digest email via SMTP — each story shows its LLM relevance badge, plus an
+        "Also considered" list of the next 5 runners-up (title+link+score). Files saved
+        to data/briefings/. If nothing qualifies: a short "quiet-day" email instead.
 ```
 
 Entry point: `run_briefing.py`. Flags: `--dry-run` (build + save, don't send),
@@ -76,19 +87,29 @@ Entry point: `run_briefing.py`. Flags: `--dry-run` (build + save, don't send),
   enriches missing publish dates by fetching the article page metadata
   (`enrich_publish_dates`). Auth `X-API-Key`.
 - `src/prioritize/scoring.py` — `composite()`, `semantic_dedupe()` (cosine over
-  embeddings), `dedupe_by_title()` (keyword fallback), date/money/title helpers.
-  (Old `pre_rank`/`keyword_hits`/`critical_match` were removed.)
+  embeddings), `dedupe_by_title()` (keyword fallback), and **`forced_floor()`** — the
+  deterministic config-driven score floor (`briefing.forced_floor_rules`; fires when one
+  sentence contains a term from every group; never lowers a higher LLM score).
 - `src/prioritize/llm_relevance.py` — batched 0-10 scoring (batch_size 15, max_tokens
-  4000 to avoid JSON truncation).
-- `src/output/synthesize.py` — briefing JSON; one story per item (dedup is upstream).
-- `src/output/emailer.py` — `render_digest` (plain text), `render_digest_html` (the
-  sent email: area tag + source + larger title), `render_quiet_html`, `_norm_url`,
-  `_fmt_date`, `send()`.
+  4000). The system prompt = base + `briefing.relevance_guidance` (the rubric).
+- `src/output/synthesize.py` — briefing JSON; one story per item. `watch_next` asks the
+  model for a story-appropriate TIME HORIZON (days … year), not a fixed "1-2 weeks".
+- `src/output/emailer.py` — `render_digest` / `render_digest_html` (sent email: area tag,
+  source, title + **LLM-relevance badge**, then an **"Also considered" runners-up list**
+  via `_runners_html`/`_runner_lines_text`), `render_quiet_html`, `_fmt_score`, `send()`.
+- `run_briefing.prioritize()` — applies forced-floor, the >=90/min5/max12 selection, and
+  returns `(final, runners)`. Re-brief eligibility is **calendar-day** (see below).
 - `scripts/setup_scouts.py` — create/manage scouts: `--list`, `--dry-run`, `--force`
   (archives the old scout first to avoid orphan billing), `--sources`, `--stop`,
   `--restart`. Schedules first run at `scout_scan_hour_local` (5am) and asks for
   `published_date`. **Must run locally** (needs network to api.yutori.com).
 - `scripts/verify_sources.py` — checks RSS URLs. `scripts/score_report.py` — debug ranking.
+- `scripts/test_synthesis.py` (+ `scripts/test_article.json`) — run a hand-written article
+  through the REAL scorer + forced-floor + Gemini synthesis + email render, no DB/send. Prints
+  the score (flags a fired floor) and writes a per-article HTML preview. For testing tuning.
+- `scripts/purge_stale_undated.py` — one-off cleanup of stale undated rows (used for the old
+  native-feed Fierce leftovers). `scripts/diagnose_enrich.py` — probe why date-enrichment fails.
+- `PRIORITIZATION_CHANGELOG.md` — the full inventory of every prioritization adjustment/feature.
 - `.github/workflows/daily-briefing.yml` — primary trigger is **`workflow_dispatch`**
   (called by the external cron service, the reliable path); a `schedule:` cron (`7 10`)
   remains as a best-effort backup. Has `actions: read` + a `concurrency` group, and a
@@ -108,11 +129,17 @@ Entry point: `run_briefing.py`. Flags: `--dry-run` (build + save, don't send),
 
 `settings.yaml`
 - `org.name` "University of Miami Health System", `org.short_name` "UM",
-  `org.timezone` America/New_York.
+  `org.timezone` America/New_York. `org.description` now carries UHealth's real profile
+  (scale, expansion zones, NIH/research, AI, payer, partnerships) — used as the scoring lens.
 - `llm.provider: gemini`; scoring & synthesis both `gemini-2.5-flash`.
-- `briefing.lookback_hours: 72`, `rebrief_after_hours: 24`, `enrich_publish_dates: true`,
-  `enrich_timeout_seconds: 10`, `max_stories: 5`, `digest_top_n: 5`,
-  `digest_recipients: [wef28@miami.edu]`.
+- `briefing.relevance_guidance` — **the scoring rubric** (gates, vectors, exclusions, worked
+  examples). The single biggest tuning surface; no code change needed.
+- `briefing.select_threshold: 90`, `min_stories: 5`, `max_stories: 12`, `digest_top_n: 12`
+  (selection = every story >=90, min 5 / max 12; replaced the old `max_stories: 5` top-N).
+- `briefing.forced_floor_rules` — deterministic floors (FIU+Baptist same-sentence -> 9).
+- `briefing.lookback_hours: 72`, `enrich_publish_dates: true`, `enrich_timeout_seconds: 10`.
+  `rebrief_after_hours: 24` is **no longer used** — re-brief is now CALENDAR-DAY (below).
+- `briefing.digest_recipients`: 5 (wef28, jakeherman, psharma, cjvonherrath, fxs1141 @miami.edu).
 - `yutori`: `output_interval_seconds: 86400` (daily), `stop_after_first_update: false`
   (keep running daily), `scout_scan_hour_local: 5`, `enrich_publish_dates: true`.
 
@@ -127,18 +154,48 @@ Entry point: `run_briefing.py`. Flags: `--dry-run` (build + save, don't send),
 
 `sources.yaml` — feeds per area. `type: rss` (free, headlines+links) or `type: yutori`
 (scraped). Note: do NOT point a Yutori scout at paywalled sites (Modern Healthcare,
-Becker's) — terms prohibit it; use headline RSS proxies instead.
+Becker's) — terms prohibit it; use headline RSS proxies instead. (NOAA NHC weather feed
+removed 2026-06-18 — undateable, low-relevance noise.)
+
+## Prioritization (current) — the scoring brain
+
+Everything below is in `config/settings.yaml → briefing.relevance_guidance` (plain-text rubric
+injected into the scoring prompt) unless noted. Full inventory: `PRIORITIZATION_CHANGELOG.md`.
+Audience = UHealth EXECUTIVES; score = **impact on UHealth's strategy & long-term direction**
+(competitive intel fused with operational/financial/strategic impact). See the persisted memory
+note "prioritization-audience-and-scoring".
+
+- **Three gates** (applied before placing on the 0-10 scale): (1) direct UHealth relevance —
+  not pharma/PBM/insurer; third-party fights 2-3 unless direct impact; (2) actionability —
+  general/awareness 3-5, opinion 1; (3) judge against UHealth's EXISTING position — relevance is
+  a real gap/threat/opportunity, not a keyword match (e.g. talent pipelines = low, UHealth is
+  already strong via the med school).
+- **Seven strategic vectors score high (8-10):** growth/competitive footprint (weighted to
+  expansion zones), federal/state funding & policy (NIH/Medicare/Medicaid), payer/reimbursement
+  leverage, flagship service lines (as a lens for EXTERNAL developments), workforce/talent,
+  AI/health-tech (gated), partnerships. Vectors say WHAT can score high; gate 3 decides whether
+  it actually moves UHealth's position.
+- **Hard exclusions / de-prioritizations:** pharmacy/drug-pricing/PBM is NOT a priority;
+  EXCLUDE UHealth's own news (own institutes -> 1-2); AI gate (only if adoptable by a provider
+  or a peer system is deploying — biotech/pharma AI & vendors UHealth doesn't use -> 2-4);
+  human-interest/survivorship/local public-health warnings -> 1-3; cybersecurity & research are
+  slow-day "keep an eye on" awareness (5-6), not weighted vectors.
+- **Calibrated by worked examples** drawn from leadership's own review + daily-review notes.
+- **Deterministic forced floors** (`forced_floor_rules` + `scoring.forced_floor`): FIU+Baptist
+  same-sentence -> >=9 (Baptist moving into academic medicine via FIU's med school). A floor,
+  not a cap; config-driven and extensible.
+- **Composite & selection:** composite = LLM x 10 (area/source weights off). Select every story
+  >=90, **min 5 / max 12** (replaced fixed top-5).
+- **Re-brief = CALENDAR DAY** (`run_briefing.prioritize`, org timezone): a briefed story is
+  eligible only for the rest of the SAME local day, so same-day re-runs reproduce but a story
+  NEVER repeats on a later day. (The old rolling-24h window let late-day stories reappear the
+  next morning — fixed 2026-06-18.)
 
 ## Design decisions worth remembering
 
 - **Pure LLM relevance, no keywords.** Keyword gating/boosts were removed — they surfaced
   local fluff (e.g. "Miami" matching sports) and missed well-worded stories. The LLM judges
-  relevance to UHealth; area weight is a tunable nudge (currently 0).
-- **Actionability is weighted in scoring.** The LLM prompt rewards items that imply a concrete
-  decision/response (competitor builds a hospital → growth strategy) and penalizes passive,
-  informational items (a routine tropical-weather outlook). Core clause is in `llm_relevance.SYSTEM`;
-  the detailed rubric + examples live in `settings.yaml: briefing.relevance_guidance` (tune there,
-  no code change), injected into the scoring prompt via `score_batch(..., guidance=...)`.
+  relevance to UHealth via the `relevance_guidance` rubric; area weight is a tunable nudge (0).
 - **Semantic dedup, not string matching.** The same event from multiple feeds has different
   wording; embeddings catch meaning. String matching was proven to over/under-merge.
 - **3-day window by PUBLISH date** so a Monday run covers the weekend and old surfaced
@@ -152,12 +209,13 @@ Becker's) — terms prohibit it; use headline RSS proxies instead.
 - **Scouts run daily (not one-shot).** `stop_after_first_update: false`. Briefing only
   polls (free); scouts scan once/day (the only Yutori charge).
 - **Quiet-day email** so silence ≠ broken pipeline.
-- **24h re-brief window, not one-shot.** A briefed story stays eligible until
-  `rebrief_after_hours` (24h) after it was *first* briefed, then is suppressed so fresh
-  news surfaces. `mark_briefed` stamps a full ISO timestamp and only when `briefed_on IS
-  NULL` (re-runs don't push the clock forward). `candidates_recent` includes never-briefed
-  items plus those briefed within the window. This makes same-day re-runs reproduce the
-  same briefing instead of burning a new top-5 every run, while next-day runs roll over.
+- **Re-brief = CALENDAR DAY (changed 2026-06-18, replaced the old rolling-24h window).** A
+  briefed story is eligible only for the rest of the SAME local day (org timezone): the cutoff
+  passed to `candidates_recent` is local midnight today (in UTC), computed in
+  `run_briefing.prioritize`. So same-day re-runs reproduce the briefing, but a story NEVER
+  repeats on a later day. `mark_briefed` still stamps a full ISO timestamp only when
+  `briefed_on IS NULL`. The old `rebrief_after_hours` (24h) is unused — the rolling window let a
+  story briefed late one day reappear the next morning when two runs landed <24h apart.
 
 ## Operations
 
