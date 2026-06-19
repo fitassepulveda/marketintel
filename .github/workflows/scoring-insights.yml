@@ -1,0 +1,48 @@
+name: Scoring Insights Report
+
+# Emails an Excel "how the LLM is scoring" report every few days.
+# Reads the article database committed in the repo (data/intel.db), so the daily
+# briefing must be running and committing scored articles for this to have data.
+
+on:
+  schedule:
+    # Mondays & Thursdays at 14:00 UTC (~10am ET) — a couple of days apart.
+    # GitHub's cron can drift; for reliability you can also trigger this via your
+    # existing cron-job.org -> workflow_dispatch setup (see CLOUD_SCHEDULING.md).
+    - cron: "0 14 * * 1,4"
+  workflow_dispatch: {}
+
+jobs:
+  insights:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build & email scoring-insights report
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          # Recipient for the insights report. Set this repo variable/secret to
+          # override; defaults to fxs1141@miami.edu in the script.
+          INSIGHTS_EMAIL_TO: ${{ vars.INSIGHTS_EMAIL_TO || 'fxs1141@miami.edu' }}
+          INSIGHTS_WINDOW_DAYS: "7"
+        run: python scripts/scoring_insights.py
+
+      - name: Upload workbook artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scoring-insights
+          path: data/scoring_insights_*.xlsx
+          if-no-files-found: ignore
