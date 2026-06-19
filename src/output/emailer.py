@@ -180,7 +180,7 @@ def render_digest(stories: list[dict], date_str: str, org_short: str,
             f'* What happened: {s.get("what_happened", "")}',
             f'* Why it matters to {org_short}: {s.get("why_it_matters", "")}',
             f'* Institutional exposure: {s.get("exposure", "")}',
-            f'* What to watch next (1–2 weeks): {s.get("watch_next", "")}',
+            f'* What to watch next: {s.get("watch_next", "")}',
             f'* Supporting coverage: Read more through [{label}]({url})',
             f'* Captured Date: {captured}',
             f'* Published Date: {published}',
@@ -241,7 +241,7 @@ def render_digest_html(stories: list[dict], date_str: str, org_short: str,
             f'<p style="margin:5px 0"><b>Why it matters to {escape(org_short)}:</b> '
             f'{escape(s.get("why_it_matters", ""))}</p>'
             f'<p style="margin:5px 0"><b>Institutional exposure:</b> {escape(s.get("exposure", ""))}</p>'
-            f'<p style="margin:5px 0"><b>What to watch next (1–2 weeks):</b> '
+            f'<p style="margin:5px 0"><b>What to watch next:</b> '
             f'{escape(s.get("watch_next", ""))}</p>'
             f'<p style="margin:5px 0"><b>Supporting coverage:</b> '
             f'<a href="{url}" style="color:#1F3864">{escape(label)}</a></p>'
