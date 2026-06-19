@@ -1,0 +1,23 @@
+# AHP pairwise comparison of the six strategic dimensions.
+#
+# Each entry "A_vs_B: v" means dimension A is v times more important than B,
+# on Saaty's 1-9 scale:
+#   1 = equal, 3 = moderately more, 5 = strongly more, 7 = very strongly, 9 = extremely
+#   (2,4,6,8 = intermediate). Reciprocals are filled in automatically.
+#
+# You only need to fill the pairs you have an opinion on; missing pairs = equal (1).
+# Run `python scripts/ahp.py --judgments` to turn these into weights and to check
+# whether your judgments are internally consistent (Consistency Ratio < 0.10).
+#
+# This sample reflects the deck's leadership priorities (financial + strategic first).
+pairwise:
+  financial_impact_vs_time_sensitivity: 2
+  financial_impact_vs_proximity: 3
+  financial_impact_vs_operational_impact: 2
+  strategic_impact_vs_proximity: 3
+  strategic_impact_vs_time_sensitivity: 2
+  competitive_relevance_vs_operational_impact: 2
+  competitive_relevance_vs_proximity: 2
+  financial_impact_vs_competitive_relevance: 1
+  strategic_impact_vs_competitive_relevance: 1
+  operational_impact_vs_proximity: 2

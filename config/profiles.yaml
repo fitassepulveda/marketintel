@@ -1,0 +1,68 @@
+# Per-executive personalization profiles for UHealth leadership.
+#
+# Each profile re-ranks the SAME pool of articles the main pipeline already scored,
+# through one person's lens (using the stored six sub-scores), then a briefing is
+# synthesized and emailed to their address. No extra relevance scoring per person.
+#
+# To ADD an executive:  copy a block, edit name/email/weights, set active: true.
+# To REMOVE / pause:     delete the block, or set active: false.
+# To link to an email:   set the `email:` field — that's the delivery address.
+# See who's configured:  python scripts/personalize.py --list-profiles
+#
+# What an executive cares about — choose ONE per profile:
+#   A) subscore_weights: direct 0–10 importance for each of the six dimensions, or
+#   B) ahp_pairwise:     pairwise judgments (Saaty 1–9); weights derived via the
+#                        principal eigenvector (audit-ready, consistency-checked).
+#
+# Optional: area_weights (small nudge, neutral at 7), keyword_interests, threshold.
+
+defaults:
+  threshold: 55
+  max_stories: 8
+
+profiles:
+  - name: "CFO (example)"
+    title: "Chief Financial Officer"
+    email: "cfo@miami.edu"
+    active: false                       # set true + real email to enable
+    subscore_weights:
+      financial_impact: 10
+      strategic_impact: 7
+      competitive_relevance: 5
+      operational_impact: 6
+      time_sensitivity: 7
+      proximity: 4
+    area_weights:
+      payer_insurance: 10
+      national_policy: 9
+    keyword_interests: [reimbursement, margin, denial, Medicare, Medicaid, NIH, funding, contract]
+
+  - name: "COO (example)"
+    title: "Chief Operating Officer"
+    email: "coo@miami.edu"
+    active: false
+    ahp_pairwise:                        # derived weights (eigenvector) instead of direct
+      operational_impact_vs_financial_impact: 2
+      operational_impact_vs_strategic_impact: 2
+      operational_impact_vs_competitive_relevance: 2
+      time_sensitivity_vs_proximity: 2
+    area_weights:
+      south_florida_competitive: 9
+      public_health_risk: 8
+    keyword_interests: [capacity, expansion, staffing, workforce, beds, surge, outage]
+
+  - name: "Chief Strategy Officer (example)"
+    title: "Chief Strategy & Transformation Officer"
+    email: "cso@miami.edu"
+    active: false
+    subscore_weights:
+      financial_impact: 6
+      strategic_impact: 10
+      competitive_relevance: 10
+      operational_impact: 4
+      time_sensitivity: 6
+      proximity: 9
+    area_weights:
+      south_florida_competitive: 10
+      innovation_ai: 8
+    keyword_interests: [Baptist, FIU, merger, acquisition, partnership, expansion, "service line", AI]
