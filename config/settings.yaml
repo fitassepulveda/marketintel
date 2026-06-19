@@ -255,12 +255,20 @@ briefing:
   # How many stories the email digest renders. Keep >= max_stories so selected stories
   # aren't truncated in the email.
   digest_top_n: 12
+  # Named recipient lists, kept for easy switching. The briefing sends to `digest_recipients`
+  # below (the ACTIVE list) — to switch, copy the list you want into digest_recipients.
+  recipient_lists:
+    production:                         # the full leadership distribution (5)
+      - "wef28@miami.edu"
+      - "jakeherman@miami.edu"
+      - "psharma@miami.edu"
+      - "cjvonherrath@miami.edu"
+      - "fxs1141@miami.edu"
+    test:                               # test sends — just you
+      - "wef28@miami.edu"
+  # ACTIVE list the briefing actually emails. Currently: TEST (wef28 only).
   digest_recipients:
     - "wef28@miami.edu"
-    - "jakeherman@miami.edu"
-    - "psharma@miami.edu"
-    - "cjvonherrath@miami.edu"
-    - "fxs1141@miami.edu"
 
   # Deterministic score FLOORS applied after LLM scoring (src/prioritize/scoring.forced_floor,
   # applied in run_briefing.prioritize). A rule fires when a SINGLE sentence of the article
