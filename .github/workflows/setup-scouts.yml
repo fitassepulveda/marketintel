@@ -1,0 +1,63 @@
+name: Set Up Yutori Scouts
+
+# One-shot, MANUAL workflow (Actions tab -> Run workflow). Recreates the Yutori
+# Scouts under whatever account owns the current YUTORI_API_KEY secret, and commits
+# the new scout IDs into data/intel.db so the daily briefing polls the new scouts.
+#
+# Use this when the YUTORI_API_KEY changes (e.g. a new account). The old account's
+# scouts can't be archived with the new key — the script just warns and continues,
+# which is fine (the old account isn't billing once it's out of credits).
+
+on:
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: "Comma-separated source names (must match sources.yaml)"
+        default: "Baptist Health South Florida,Jackson Health System"
+        required: true
+      dry_run:
+        description: "Preview only (create nothing, commit nothing)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # to commit the updated scout IDs in data/intel.db
+
+jobs:
+  setup-scouts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create / recreate scouts
+        env:
+          YUTORI_API_KEY: ${{ secrets.YUTORI_API_KEY }}
+        run: |
+          ARGS="--force"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="--dry-run"; fi
+          python scripts/setup_scouts.py $ARGS --sources "${{ inputs.sources }}"
+
+      - name: List scouts now on the account
+        env:
+          YUTORI_API_KEY: ${{ secrets.YUTORI_API_KEY }}
+        run: python scripts/setup_scouts.py --list
+
+      - name: Persist updated database (new scout IDs)
+        if: success() && inputs.dry_run == false
+        run: |
+          git add -f data/intel.db
+          if git diff --cached --quiet; then
+            echo "No database changes to commit."
+          else
+            git config user.name  "marketintel-bot"
+            git config user.email "um.marketintel.bot@users.noreply.github.com"
+            git commit -m "chore: recreate Yutori scouts under new account [skip ci]"
+            git push || (git pull --rebase --autostash && git push)
+          fi
