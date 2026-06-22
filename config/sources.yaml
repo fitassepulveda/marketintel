@@ -15,14 +15,17 @@ national_policy:
   # CMS's own /newsroom/rss-feeds is malformed (HTML titles, no dates) and Google News
   # doesn't index cms.gov pages, so use a dated keyword query for CMS policy coverage.
   - { name: CMS Newsroom,        type: rss,    url: "https://news.google.com/rss/search?q=%22Centers+for+Medicare+%26+Medicaid+Services%22+OR+%22CMS+final+rule%22+OR+%22CMS+proposed+rule%22&hl=en-US&gl=US&ceid=US:en" }
-  - { name: HHS News,            type: yutori, url: "https://www.hhs.gov/about/news/index.html" }  # feed exists but blocks non-browser clients; revisit w/ scraper
+  - { name: HHS News,            type: rss,    url: "https://www.hhs.gov/rss/news.xml" }  # native RSS verified live 2026-06-22
   - { name: FDA Press Releases,  type: rss,    url: "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml" }
   - { name: Healthcare Dive,     type: rss,    url: "https://www.healthcaredive.com/feeds/news/" }
-  - { name: Becker's Hospital Review, type: yutori, url: "https://www.beckershospitalreview.com" }  # /feed/ exists but Cloudflare blocks it intermittently
+  - { name: Becker's Hospital Review, type: rss, url: "https://www.beckershospitalreview.com/feed/" }  # native RSS verified live 2026-06-22 (Cloudflare may flake intermittently)
   - { name: Modern Healthcare (headlines), type: rss,
       url: "https://news.google.com/rss/search?q=site:modernhealthcare.com&hl=en-US&gl=US&ceid=US:en",
       }
-  - { name: Modern Healthcare,   type: yutori, url: "https://www.modernhealthcare.com" }  # paywalled; confirm legal access
+  # Modern Healthcare Yutori dropped 2026-06-22 — paywalled, and headlines already covered by the Google News RSS above.
+  # AHCA (FL Agency for Health Care Administration) — hospital licensing, CON, Medicaid. Gov site,
+  # no RSS -> Yutori scout. Activate with: setup_scouts.py --force --sources "AHCA Florida".
+  - { name: AHCA Florida, type: yutori, url: "https://ahca.myflorida.com/agency-administration/chief-of-staff-office/office-of-communications/press-releases" }
 
 south_florida_competitive:
   # Competitor newsrooms: none expose a working public RSS feed (checked 2026-06-12;
@@ -31,7 +34,7 @@ south_florida_competitive:
   # NOTE: confirm/edit this watchlist with leadership (plan task 0.4).
   - { name: Baptist Health South Florida, type: yutori, url: "https://baptisthealth.net/baptist-health-news" }
   - { name: Jackson Health System,        type: yutori, url: "https://jacksonhealth.org/news" }
-  - { name: University of Miami Health System, type: yutori, url: "https://news.med.miami.edu" }
+  - { name: University of Miami Health System, type: rss, url: "https://news.med.miami.edu/feed/" }  # native WordPress RSS verified live 2026-06-22
   - { name: Cleveland Clinic Florida,     type: yutori, url: "https://newsroom.clevelandclinic.org" }
   - { name: Memorial Healthcare System,   type: yutori, url: "https://www.mhs.net/news" }
   - { name: Mount Sinai Medical Center,   type: yutori, url: "https://www.msmc.com/about-us/news" }
@@ -46,6 +49,8 @@ south_florida_competitive:
   - { name: South Florida Business Journal (Health), type: rss,
       url: "https://news.google.com/rss/search?q=site:bizjournals.com/southflorida+health&hl=en-US&gl=US&ceid=US:en",
       }
+  # Regional healthcare-industry trade outlet — health-focused WordPress feed (whole feed relevant).
+  - { name: South Florida Hospital News, type: rss, url: "https://southfloridahospitalnews.com/feed/", verify: true }
   # Removed "Miami Herald Health Care": the site:miamiherald.com+health query returned
   # general Miami news (sports/politics), not competitor intel — pure noise here.
   # General Miami Herald coverage still flows via the reputation_media feed below.
@@ -55,7 +60,7 @@ payer_insurance:
   # Native feed returns items without per-item dates; use a dated Google News proxy.
   - { name: Fierce Healthcare,   type: rss,    url: "https://news.google.com/rss/search?q=site:fiercehealthcare.com&hl=en-US&gl=US&ceid=US:en" }
   - { name: AHIP,                type: yutori, url: "https://www.ahip.org/news" }  # /feed and /news/feed both empty - no public RSS
-  - { name: CMS Medicare,        type: yutori, url: "https://www.cms.gov/medicare" }  # Medicare press releases already flow in via CMS Newsroom RSS
+  # CMS Medicare Yutori dropped 2026-06-22 — already covered by CMS Newsroom RSS (national_policy).
 
 innovation_ai:
   - { name: STAT Health Tech,    type: rss,    url: "https://www.statnews.com/category/health-tech/feed/" }  # category feed - more targeted than site-wide /feed/
@@ -64,6 +69,8 @@ innovation_ai:
       url: "https://news.google.com/rss/search?q=site:healthcareitnews.com&hl=en-US&gl=US&ceid=US:en",
       }
   - { name: HIMSS,               type: yutori, url: "https://www.himss.org/news" }
+  # Fierce Biotech: native RSS is flaky/bot-blocked (like Fierce Healthcare) — use a Google News proxy.
+  - { name: Fierce Biotech,      type: rss,    url: "https://news.google.com/rss/search?q=site:fiercebiotech.com&hl=en-US&gl=US&ceid=US:en" }
 
 public_health_risk:
   - { name: CDC Newsroom,        type: rss,    url: "https://tools.cdc.gov/api/v2/resources/media/132608.rss" }
@@ -71,6 +78,13 @@ public_health_risk:
       # If verify_sources shows no recent items, browse https://tools.cdc.gov/podcasts/rss.asp for a current feed ID.
   - { name: WHO News,            type: rss,    url: "https://www.who.int/rss-feeds/news-english.xml" }
   - { name: Florida Dept of Health, type: rss, url: "https://www.floridahealth.gov/feed/" }  # site moved to WordPress - feed verified live
+  # County health departments — same Florida Health WordPress network, /feed/ should work.
+  - { name: FL Health - Broward,    type: rss, url: "https://broward.floridahealth.gov/feed/",    verify: true }
+  - { name: FL Health - Miami-Dade, type: rss, url: "https://miamidade.floridahealth.gov/feed/",  verify: true }
+  # Miami-Dade County press index — no RSS -> Yutori scout. NOTE: this is the COUNTY-WIDE press
+  # feed (transit, parks, elections...), so it's mostly non-health noise; the LLM will filter it
+  # but each scan still costs. Consider dropping it if it never surfaces health-relevant items.
+  - { name: Miami-Dade County, type: yutori, url: "https://www.miamidade.gov/global/navigation/prindex.page" }
 
 reputation_media:
   # Removed "Miami Herald (headlines)": site:miamiherald.com returned all Miami news
@@ -80,5 +94,17 @@ reputation_media:
   - { name: Google News (org query), type: rss,
       url: "https://news.google.com/rss/search?q=%22ORG_NAME%22&hl=en-US&gl=US&ceid=US:en",
       }
+  # Local South Florida TV / alt-weekly outlets. Their native feeds are site-wide (mostly
+  # crime/sports/weather) or proprietary, so we pull each via a Google News site: query
+  # SCOPED to "health" — reliable RSS, targeted, free. These are lower-value/higher-noise; trim
+  # any that don't earn their place.
+  - { name: WSVN (Health),        type: rss, url: "https://news.google.com/rss/search?q=site:wsvn.com+health&hl=en-US&gl=US&ceid=US:en" }
+  - { name: Local 10 (Health),    type: rss, url: "https://news.google.com/rss/search?q=site:local10.com+health&hl=en-US&gl=US&ceid=US:en" }
+  - { name: NBC6 Miami (Health),  type: rss, url: "https://news.google.com/rss/search?q=site:nbcmiami.com+health&hl=en-US&gl=US&ceid=US:en" }
+  - { name: CBS News Miami (Health), type: rss, url: "https://news.google.com/rss/search?q=site:cbsnews.com/miami+health&hl=en-US&gl=US&ceid=US:en" }
+  - { name: WPBF (Health),        type: rss, url: "https://news.google.com/rss/search?q=site:wpbf.com+health&hl=en-US&gl=US&ceid=US:en" }
+  - { name: Miami New Times (Health), type: rss, url: "https://news.google.com/rss/search?q=site:miaminewtimes.com+health&hl=en-US&gl=US&ceid=US:en" }
+  - { name: Broward-Palm Beach New Times (Health), type: rss, url: "https://news.google.com/rss/search?q=site:browardpalmbeach.com+health&hl=en-US&gl=US&ceid=US:en" }
+  - { name: SFL Times (Health),   type: rss, url: "https://news.google.com/rss/search?q=site:sfltimes.com+health&hl=en-US&gl=US&ceid=US:en" }
   # LinkedIn News: no RSS feed exists and scraping violates LinkedIn ToS.
   # Options: manual monitoring, or LinkedIn's official API (requires partnership approval).
