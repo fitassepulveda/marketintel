@@ -33,7 +33,9 @@ def load_all() -> dict:
 
 
 def env(key: str, required: bool = True) -> str:
-    val = os.environ.get(key, "")
+    # .strip() guards against secrets pasted with a trailing newline/space — a
+    # common GitHub-secrets mistake that makes an API key an illegal HTTP header.
+    val = os.environ.get(key, "").strip()
     if required and not val:
         raise SystemExit(f"Missing required environment variable: {key} (see .env.example)")
     return val

@@ -34,7 +34,7 @@ _fetch_published_date = enrich.fetch_published_date
 
 
 def _headers() -> dict:
-    api_key = os.environ.get("YUTORI_API_KEY", "")
+    api_key = os.environ.get("YUTORI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("YUTORI_API_KEY not set")
     return {"X-API-Key": api_key}
