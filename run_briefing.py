@@ -277,20 +277,31 @@ def main():
                    quiet_html, args.dry_run, run_date, label="Quiet-day note")
         return
 
+    def _basic_briefing(items):
+        # No-LLM digest: title + source + link + raw summary, no synthesized narrative.
+        return {"takeaways": [a["title"] for a in items[:5]], "key_question_answers": {},
+                "stories": [{"title": a["title"], "area": a["area"], "source": a["source"],
+                             "url": a["url"],
+                             "what_happened": (a.get("summary") or a.get("content") or "")[:300],
+                             "why_it_matters": "", "exposure": "", "watch_next": "",
+                             "coverage_label": ""} for a in items],
+                "watch": [], "actions": []}
+
     if use_llm:
         models = cfg["settings"]["llm"]["models"][cfg["settings"]["llm"]["provider"]]
-        briefing = synthesize.build_briefing(
-            client, models["synthesis"],
-            cfg["settings"]["llm"]["max_tokens_synthesis"],
-            cfg["settings"]["org"], cfg["settings"]["key_questions"], top,
-        )
+        try:
+            briefing = synthesize.build_briefing(
+                client, models["synthesis"],
+                cfg["settings"]["llm"]["max_tokens_synthesis"],
+                cfg["settings"]["org"], cfg["settings"]["key_questions"], top,
+            )
+        except Exception as exc:
+            # A Gemini outage (e.g. repeated 503s) must not kill the send — fall back to a
+            # basic digest so the briefing still goes out, just without the narrative.
+            log.warning("Synthesis failed (%s) — sending a basic digest (no narrative).", exc)
+            briefing = _basic_briefing(top)
     else:
-        briefing = {"takeaways": [a["title"] for a in top[:5]], "key_question_answers": {},
-                    "stories": [{"title": a["title"], "area": a["area"], "source": a["source"],
-                                 "url": a["url"], "what_happened": a["summary"][:200],
-                                 "why_it_matters": "", "exposure": "", "watch_next": "",
-                                 "coverage_label": ""} for a in top],
-                    "watch": [], "actions": []}
+        briefing = _basic_briefing(top)
 
     # Safety net: guarantee every ranked story appears, even if synthesis dropped one.
     # Append a basic entry (from the DB row) for any top item the LLM didn't emit.
