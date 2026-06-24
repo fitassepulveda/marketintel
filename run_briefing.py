@@ -127,7 +127,7 @@ def prioritize(con, cfg, client, use_llm: bool) -> list[dict]:
     rows = [a for a in rows if _is_recent(a, cutoff)]
     if not rows:
         log.info("No articles published within the last %dh.", settings["briefing"]["lookback_hours"])
-        return []
+        return [], []   # (top, runners) — main() unpacks a pair; [] alone would crash the run
 
     # No keyword influence anywhere. The LLM scores every recent article for relevance
     # to the org (against its area's key question). Order by recency (neutral), then
