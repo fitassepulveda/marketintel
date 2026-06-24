@@ -257,7 +257,13 @@ def main():
     ingest(con, cfg, run_date, use_yutori=not args.no_yutori)
 
     client = LLMClient(cfg["settings"]["llm"]["provider"]) if use_llm else None
-    top, runners = prioritize(con, cfg, client, use_llm)
+    try:
+        top, runners = prioritize(con, cfg, client, use_llm)
+    except llm_relevance.ScoringUnavailable as exc:
+        # LLM down during scoring — fail (don't send a false quiet-day note) so the watchdog
+        # alerts and a re-trigger retries until the LLM is back.
+        log.error("Scoring failed (%s) — NOT sending; failing so the run retries.", exc)
+        raise SystemExit(1)
 
     settings = cfg["settings"]
     date_h = datetime.now().strftime("%A, %B %d, %Y")

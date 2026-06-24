@@ -7,6 +7,11 @@ from src.llm_client import LLMClient, strip_fences
 
 log = logging.getLogger("prioritize.llm")
 
+
+class ScoringUnavailable(RuntimeError):
+    """Raised when EVERY scoring batch failed (the LLM is down) — so the run can fail
+    cleanly instead of mistaking an outage for a genuine quiet day."""
+
 SYSTEM = """You score news items for a healthcare system's executive intelligence briefing.
 Score each item 0-10 for strategic relevance to the organization described, judged against
 the intelligence area's key question. Consider monetary impact, operational impact, and
@@ -29,7 +34,9 @@ def score_batch(client: LLMClient, model: str, org: dict, key_questions: dict,
     prompt — e.g. an actionability rubric with examples — tunable without code changes."""
     system = SYSTEM if not guidance.strip() else f"{SYSTEM}\n\n{guidance.strip()}"
     results: list[tuple[float, str]] = [(0.0, "not scored")] * len(articles)
+    n_batches = n_failed = 0
     for start in range(0, len(articles), batch_size):
+        n_batches += 1
         batch = articles[start:start + batch_size]
         items_txt = "\n".join(
             f'[{i}] area={a["area"]} | key question: {key_questions.get(a["area"], "")}\n'
@@ -48,5 +55,9 @@ def score_batch(client: LLMClient, model: str, org: dict, key_questions: dict,
                 if start <= idx < start + len(batch):
                     results[idx] = (float(obj["score"]), str(obj.get("why", "")))
         except Exception as exc:
+            n_failed += 1
             log.warning("LLM scoring batch failed (%s); items keep score 0", exc)
+    # If EVERY batch failed, the LLM is down — don't let that masquerade as a quiet day.
+    if n_batches and n_failed == n_batches:
+        raise ScoringUnavailable(f"all {n_batches} scoring batches failed (LLM unavailable)")
     return results
