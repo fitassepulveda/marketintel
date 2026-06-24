@@ -278,7 +278,7 @@ def main():
         return
 
     def _basic_briefing(items):
-        # No-LLM digest: title + source + link + raw summary, no synthesized narrative.
+        # No-LLM digest (used ONLY with the --no-llm dev flag, never the scheduled path).
         return {"takeaways": [a["title"] for a in items[:5]], "key_question_answers": {},
                 "stories": [{"title": a["title"], "area": a["area"], "source": a["source"],
                              "url": a["url"],
@@ -296,10 +296,14 @@ def main():
                 cfg["settings"]["org"], cfg["settings"]["key_questions"], top,
             )
         except Exception as exc:
-            # A Gemini outage (e.g. repeated 503s) must not kill the send — fall back to a
-            # basic digest so the briefing still goes out, just without the narrative.
-            log.warning("Synthesis failed (%s) — sending a basic digest (no narrative).", exc)
-            briefing = _basic_briefing(top)
+            # No synthesized/prioritized result -> DO NOT send a degraded digest to leadership.
+            # Fail the run (non-zero exit): nothing is emailed, no story is marked briefed (so the
+            # next run retries the same stories), and the watchdog flags the missed briefing.
+            # (The longer Gemini retry/backoff above already tries hard before we get here.)
+            log.error("Synthesis failed (%s) — NOT sending. A briefing without the synthesized "
+                      "narrative isn't worth sending; failing so the watchdog alerts and the next "
+                      "run retries.", exc)
+            raise SystemExit(1)
     else:
         briefing = _basic_briefing(top)
 
