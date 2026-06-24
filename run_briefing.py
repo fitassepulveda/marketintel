@@ -293,6 +293,17 @@ def main():
                              "coverage_label": ""} for a in items],
                 "watch": [], "actions": []}
 
+    # Optional per-story deep-dive enrichment via the Yutori Research API. Off unless
+    # yutori.deep_dive.enabled is true in settings.yaml. Bounded + fail-safe: it only
+    # adds context to the top N stories and can never delay or break the send. Skipped
+    # under --no-yutori (and only useful with LLM synthesis).
+    if use_llm and not args.no_yutori:
+        try:
+            from src.ingest import deep_dive
+            deep_dive.enrich_stories(top, cfg)
+        except Exception as exc:
+            log.warning("deep-dive enrichment skipped (%s)", exc)
+
     if use_llm:
         models = cfg["settings"]["llm"]["models"][cfg["settings"]["llm"]["provider"]]
         try:

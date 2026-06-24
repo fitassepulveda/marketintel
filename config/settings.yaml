@@ -354,3 +354,13 @@ yutori:
   # only affects scouts created AFTER the change — re-run setup_scouts.py --force to
   # move existing scouts (Baptist, Jackson) to the new hour.
   scout_scan_hour_local: 5
+
+  # Per-story deep-dive: after stories are selected for the briefing, launch a one-time
+  # Yutori Research task on each of the top N to gather extra context/facts/sources,
+  # which the synthesis then folds in. OFF by default — it hits a paid API (~$0.35/story)
+  # and adds minutes to the run. Bounded + fail-safe: it can never delay or break the send.
+  deep_dive:
+    enabled: false            # set true to turn on (start with a --dry-run)
+    max_stories: 3            # enrich only the top N selected stories (cost control)
+    poll_timeout_seconds: 240 # give up waiting for results after this; never stalls the send
+    poll_interval_seconds: 10
