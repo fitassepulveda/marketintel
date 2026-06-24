@@ -19,7 +19,9 @@ GEMINI_EMBED_MODEL = "gemini-embedding-001"
 # Free tier allows 10 requests/minute on gemini-2.5-flash; pace ourselves to stay under.
 GEMINI_MIN_SECONDS_BETWEEN_CALLS = 7
 # Retries for transient overload responses (429/500/503), with exponential backoff.
-GEMINI_MAX_RETRIES = 4
+# 6 attempts with backoff capped at 60s ride out a multi-minute Gemini overload.
+GEMINI_MAX_RETRIES = 6
+GEMINI_BACKOFF_CAP = 60
 
 
 class LLMClient:
@@ -80,7 +82,7 @@ class LLMClient:
             )
             self._last_call = time.time()
             if resp.status_code in (429, 500, 503) and attempt < GEMINI_MAX_RETRIES - 1:
-                backoff = GEMINI_MIN_SECONDS_BETWEEN_CALLS * (2 ** attempt)
+                backoff = min(GEMINI_BACKOFF_CAP, GEMINI_MIN_SECONDS_BETWEEN_CALLS * (2 ** attempt))
                 log.warning("Gemini %s (overloaded); retry %d/%d in %ds",
                             resp.status_code, attempt + 1, GEMINI_MAX_RETRIES - 1, backoff)
                 time.sleep(backoff)

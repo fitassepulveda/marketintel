@@ -257,7 +257,13 @@ def main():
     ingest(con, cfg, run_date, use_yutori=not args.no_yutori)
 
     client = LLMClient(cfg["settings"]["llm"]["provider"]) if use_llm else None
-    top, runners = prioritize(con, cfg, client, use_llm)
+    try:
+        top, runners = prioritize(con, cfg, client, use_llm)
+    except llm_relevance.ScoringUnavailable as exc:
+        # LLM down during scoring — fail (don't send a false quiet-day note) so the watchdog
+        # alerts and a re-trigger retries until the LLM is back.
+        log.error("Scoring failed (%s) — NOT sending; failing so the run retries.", exc)
+        raise SystemExit(1)
 
     settings = cfg["settings"]
     date_h = datetime.now().strftime("%A, %B %d, %Y")
@@ -277,20 +283,35 @@ def main():
                    quiet_html, args.dry_run, run_date, label="Quiet-day note")
         return
 
+    def _basic_briefing(items):
+        # No-LLM digest (used ONLY with the --no-llm dev flag, never the scheduled path).
+        return {"takeaways": [a["title"] for a in items[:5]], "key_question_answers": {},
+                "stories": [{"title": a["title"], "area": a["area"], "source": a["source"],
+                             "url": a["url"],
+                             "what_happened": (a.get("summary") or a.get("content") or "")[:300],
+                             "why_it_matters": "", "exposure": "", "watch_next": "",
+                             "coverage_label": ""} for a in items],
+                "watch": [], "actions": []}
+
     if use_llm:
         models = cfg["settings"]["llm"]["models"][cfg["settings"]["llm"]["provider"]]
-        briefing = synthesize.build_briefing(
-            client, models["synthesis"],
-            cfg["settings"]["llm"]["max_tokens_synthesis"],
-            cfg["settings"]["org"], cfg["settings"]["key_questions"], top,
-        )
+        try:
+            briefing = synthesize.build_briefing(
+                client, models["synthesis"],
+                cfg["settings"]["llm"]["max_tokens_synthesis"],
+                cfg["settings"]["org"], cfg["settings"]["key_questions"], top,
+            )
+        except Exception as exc:
+            # No synthesized/prioritized result -> DO NOT send a degraded digest to leadership.
+            # Fail the run (non-zero exit): nothing is emailed, no story is marked briefed (so the
+            # next run retries the same stories), and the watchdog flags the missed briefing.
+            # (The longer Gemini retry/backoff above already tries hard before we get here.)
+            log.error("Synthesis failed (%s) — NOT sending. A briefing without the synthesized "
+                      "narrative isn't worth sending; failing so the watchdog alerts and the next "
+                      "run retries.", exc)
+            raise SystemExit(1)
     else:
-        briefing = {"takeaways": [a["title"] for a in top[:5]], "key_question_answers": {},
-                    "stories": [{"title": a["title"], "area": a["area"], "source": a["source"],
-                                 "url": a["url"], "what_happened": a["summary"][:200],
-                                 "why_it_matters": "", "exposure": "", "watch_next": "",
-                                 "coverage_label": ""} for a in top],
-                    "watch": [], "actions": []}
+        briefing = _basic_briefing(top)
 
     # Safety net: guarantee every ranked story appears, even if synthesis dropped one.
     # Append a basic entry (from the DB row) for any top item the LLM didn't emit.
