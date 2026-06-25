@@ -26,7 +26,8 @@ DIMS = subscores.DIMENSIONS
 
 
 def load_profiles() -> tuple[list[dict], dict]:
-    raw = yaml.safe_load(open(config.CONFIG_DIR / "profiles.yaml"))
+    with open(config.CONFIG_DIR / "profiles.yaml") as f:
+        raw = yaml.safe_load(f)
     return raw.get("profiles", []), raw.get("defaults", {})
 
 
