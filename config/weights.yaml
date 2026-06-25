@@ -59,7 +59,9 @@ dedup_token_overlap: 0.6
 # least this cosine-similar are the same event; the higher-scored one is kept. The
 # keyword rules above are only a free fallback if the embedding call fails.
 # Higher = stricter (fewer merges). Typical same-event news lands ~0.82-0.92.
-dedup_cosine_similarity: 0.85
+# 2026-06-25: lowered 0.85 -> 0.82 after two near-identical STAT stories on the same
+# OpenEvidence FDA-cleared AI tool both surfaced (a duplicate slipped through review).
+dedup_cosine_similarity: 0.82
 
 # Per-source cap on the scoring pool: keep at most this many (most-recent) articles
 # from any single source, so a high-volume feed (e.g. a wire that posts 30 general

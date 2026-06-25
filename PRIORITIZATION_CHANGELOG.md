@@ -4,7 +4,31 @@ Every prioritization change made to the Market Intelligence briefing, with what 
 where it lives. Most scoring behavior is in `config/settings.yaml → briefing.relevance_guidance`
 (no code change needed to tune); selection mechanics are in `run_briefing.py` + `config/`.
 
-_Last updated: 2026-06-17._
+_Last updated: 2026-06-25._
+
+---
+
+## 0. 2026-06-25 calibration (strategy-team review of the 6/25 run)
+
+Driven by feedback on the top-50 feedback workbook (`feedback_2026-06-25.xlsx`).
+
+- **Audience reframed: STRATEGY team, not general C-suite.** `relevance_guidance` now states the
+  bar explicitly — "good to know for leadership" is NOT enough; if a strategy team can't act on,
+  plan around, or track it for a likely response, cap at ~6. Strengthened GATE 2 accordingly.
+- **Funding rounds are not actionable (cap ~6).** A raise becomes high only when the product
+  ships or a hospital partners with the company (e.g. Cadence $100M raise → 6).
+- **Selection bar lowered: `select_threshold` 90 → 80** (`config/settings.yaml`). The reviewer
+  repeatedly flagged 8/10 stories (OpenEvidence FDA AI, CDC-nominee/United, Mount Sinai AI,
+  Optum, 340B) as ones that should appear. With the rubric now pushing non-actionable items to
+  ≤6 and `max_stories` capped at 12, an 8/10 bar yields a clean 8–10 strategy report.
+- **Dedup tightened: `dedup_cosine_similarity` 0.85 → 0.82** (`config/weights.yaml`) — two
+  near-identical STAT stories on the same OpenEvidence tool both surfaced.
+- **New worked-example block (2026-06-25)** added to `relevance_guidance` capturing: individual
+  crime → 0–1 (fake nursing diplomas); patient-ops AI awareness → 6 (Medicare AI delays); AI
+  opinion → 4 (Epic/Faulkner); out-of-state policy → 6 (Indiana price caps); competitor
+  AI-governance intel → 8 (Mount Sinai), with an out-of-region discount → 7.5 (Duke/Texas);
+  in-region community investment bumped 7 → 8 (Cleveland Clinic FL); near-but-not-SF competitor
+  → 6 (Florida Coast); industry context → 7/also-considered (US health spending $5.7T).
 
 ---
 

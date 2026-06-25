@@ -48,14 +48,20 @@ briefing:
   # leverage, workforce, flagship lines) + leadership's review (prioritization_review.xlsx).
   # NOTE: pharmacy/drug-pricing/PBM is explicitly NOT a priority; exclude UHealth's OWN news.
   relevance_guidance: |
-    HOW TO PRIORITIZE — the audience is UHealth's EXECUTIVE team. Score each story by its
-    IMPACT ON UHEALTH'S STRATEGY AND LONG-TERM DIRECTION. This fuses external competitive/market
-    intelligence WITH operational, financial, and strategic impact — the question is not merely
-    "is this about a competitor?" but "does this materially affect where UHealth is going: its
-    growth, competitive position, finances/reimbursement, research engine, operations, workforce,
-    or reputation?" A story can score high for pure operational/strategic impact even with no
-    competitor in it (e.g. a federal research-funding cut), and a competitor item scores high
-    because of what it implies for UHealth's strategy.
+    HOW TO PRIORITIZE — the audience is UHealth's STRATEGY team (not general C-suite / executive
+    leadership). This distinction is decisive: a story can be "good to know" for the C-suite yet
+    have NO use for a strategy team because there is nothing to act on or decide. Score by
+    IMPACT ON UHEALTH'S STRATEGY AND LONG-TERM DIRECTION, and ask specifically: "can a STRATEGY
+    team DO something with this — a move, a plan, a position, a thing to track because it may
+    require a response?" If the honest answer is "no, it's just awareness / context for
+    leadership," CAP IT at ~6 even if the topic is important and the reporting is solid (it can
+    still surface on a slow day, but it is not a high scorer). This fuses external
+    competitive/market intelligence WITH operational, financial, and strategic impact — the
+    question is not merely "is this about a competitor?" but "does this materially affect where
+    UHealth is going: its growth, competitive position, finances/reimbursement, research engine,
+    operations, workforce, or reputation?" A story can score high for pure operational/strategic
+    impact even with no competitor in it (e.g. a federal research-funding cut), and a competitor
+    item scores high because of what it implies for UHealth's strategy.
 
     UHealth is South Florida's ONLY academic medical center (University of Miami / Miller School).
     Its strategic priorities right now: aggressive GROWTH/expansion across South Florida; academic
@@ -77,6 +83,13 @@ briefing:
     leadership? Broad "state of the market," "what it means for patients," general-awareness,
     and routine-regulatory-color pieces are NOT actionable on their own — score them 3-5 even
     when well-written and accurate. Opinion/editorial pieces are excluded entirely (score 1).
+    STRATEGY-TEAM ACTIONABILITY (sharpened 2026-06-25): the bar is a STRATEGY team, not the
+    C-suite. "Important for leadership to be aware of" is NOT enough. Patient-care / clinical-ops
+    AI problems (e.g. an insurer's AI causing care delays), general industry commentary, and
+    out-of-state policy a strategy team cannot react to are AWARENESS, not action — cap at ~6.
+    A startup FUNDING ROUND is not actionable on its own (cap ~6); it becomes actionable only
+    once the product is RELEASED or a HOSPITAL PARTNERS with the company — that is the trigger
+    worth surfacing high.
 
     GATE 3 — JUDGE AGAINST UHEALTH'S EXISTING POSITION. Relevance is a real GAP, THREAT, or
     OPPORTUNITY given what UHealth already IS — not a topical keyword match. UHealth is already
@@ -177,6 +190,48 @@ briefing:
     EXCEPTION: a genuinely major public-health or policy development of broad importance
     (e.g. a global pandemic agreement, a region-wide health emergency) may score high even if
     "general," because leadership must be aware of it.
+
+    DAILY-REVIEW CALIBRATION (real strategy-team notes, 2026-06-25) — newest; apply this judgment:
+    - "School Board approves property sale to Broward Health" -> 10: SF competitor land/capacity
+      acquisition for expansion — the exact must-know story; rank first.
+    - "Jupiter Medical Center — Avenir campus breaks ground" -> 9-10: in-region, large hospital
+      expansion — geographically relevant capacity growth.
+    - "Optum prepares to sell some New York specialties" -> 8: United/Optum and a deal in motion —
+      negotiations underway makes it highly relevant (United current-watch).
+    - "CDC nominee prepares to depart UnitedHealth" -> 8: United current-watch — surface it; this
+      belongs ON the report.
+    - "Hospitals irate after Eli Lilly follows through on 340B ultimatum" -> 8: 340B is core
+      academic-medicine finance — important to know even if not immediately actionable.
+    - "OpenEvidence will add FDA-cleared AI to detect heart disease" -> 8: FDA-cleared = a
+      technology UHealth could actually look into implementing. Adoptable AI is the high tier.
+    - "Mount Sinai to centralize oversight of its growing AI portfolio" -> 8: competitive intel on
+      HOW a peer is approaching AI governance — useful as UHealth builds its own AI approach.
+    - "Duke Health / Texas Health partner with a clinical-AI company" -> 7.5: same value as the
+      Mount Sinai item (how competitors approach AI) but discounted because they are OUT OF REGION.
+    - "Cleveland Clinic Florida announces 2026 community investments" -> 8: in-region competitor
+      community-investment play — good to note and can signal expansion (bumped up from 7).
+    - "Memorial Cardiac & Vascular Institute community offering" -> 8: in-region competitor
+      marketing/community play — solid.
+    - "Nicklaus Children's performs region's first pediatric total-hip with mixed-reality" -> 8:
+      in-region competitor clinical milestone — interesting, though lighter for a STRATEGY team.
+    - "Medicare's AI push snarls patients and doctors in errors and delays" -> 6: patient-care /
+      clinical-ops AI awareness — fine for C-suite to know, but NOT actionable AI intelligence for
+      a strategy team. Slow-day at most; should NOT be a constant high scorer.
+    - "Cadence raises $100M to automate chronic-disease care" -> 6: a funding round is not
+      actionable — we care when the product ships or a hospital partners with them, not the raise.
+    - "States surge ahead on healthcare AI regulation" -> 7: AI regulation UHealth must track
+      before implementing AI — relevant but general.
+    - "US health spending spikes to $5.7T in 2025" -> 7: interesting industry context — right for
+      the "also considered" tier, NOT a highlighted top story.
+    - "Indiana caps prices hospitals can charge employers" -> 6: out-of-state policy a strategy
+      team cannot react to — exec-awareness, not strategy-actionable.
+    - "Florida Coast Medical Center completes first STEMI case" -> 6: NOT a true South Florida
+      regional competitor (different part of Florida), but close enough to show on a slow day only.
+    - "Oncology's 'last-mile problem': NCI care bypasses patients" -> 4-5: not actionable to UHealth.
+    - "Will AI replace physicians? Epic's Judy Faulkner is skeptical" -> 4: AI opinion/commentary,
+      not actionable.
+    - "Florida woman admits to selling fake nursing diplomas" -> 0-1: one individual's crime, no
+      UHealth tie — near-zero strategic value (do NOT let the Reputation/Media area inflate it).
 
     DAILY-REVIEW CALIBRATION (real exec notes, 2026-06-23) — apply this judgment:
     - "Broward Health marks construction milestone on a new medical office" -> 10: SF competitor
@@ -313,11 +368,15 @@ briefing:
   enrich_timeout_seconds: 10
   # Story selection (replaces a fixed top-N): include EVERY story whose composite score is
   # at/above select_threshold, but never fewer than min_stories nor more than max_stories.
-  # With current weights composite == LLM-relevance x 10, so select_threshold 90 == an LLM
-  # relevance of 9/10. A strong news day surfaces more (up to max); a quiet day still shows
+  # With current weights composite == LLM-relevance x 10, so select_threshold 80 == an LLM
+  # relevance of 8/10. A strong news day surfaces more (up to max); a quiet day still shows
   # a baseline of min. score_threshold in weights.yaml (55) is still the basic floor used
   # to pad up to min_stories and to decide a true quiet day.
-  select_threshold: 90
+  # 2026-06-25: lowered 90 -> 80 from strategy-team review — they repeatedly flagged 8/10
+  # stories (OpenEvidence FDA AI, CDC-nominee/United, Mount Sinai AI, Optum, 340B) as ones
+  # that SHOULD appear. With the rubric now pushing non-actionable items down to <=6 and
+  # max_stories capping volume at 12, an 8/10 bar yields a clean strategy-grade 8-10 report.
+  select_threshold: 80
   min_stories: 5
   max_stories: 12
   # Top-line takeaways count
