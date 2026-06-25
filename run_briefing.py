@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -35,10 +36,9 @@ def ingest(con, cfg, run_date: str, use_yutori: bool) -> int:
         store.log_source_health(con, run_date, source["name"], area, len(items), error)
         new_count += inserted
 
-    import os
     ycfg = cfg["settings"]["yutori"]
     yutori_on = use_yutori and bool(os.environ.get("YUTORI_API_KEY"))
-    stop_after = ycfg.get("stop_after_first_update", True)
+    stop_after = ycfg.get("stop_after_first_update", False)
     for source, area, items, error in yutori.fetch_all(con, cfg["sources"], ycfg, yutori_on):
         inserted = sum(store.insert_article(con, it) for it in items)
         store.log_source_health(con, run_date, source["name"], area, len(items), error)
@@ -104,7 +104,7 @@ def _is_recent(article: dict, cutoff: datetime) -> bool:
     return fetched is not None and fetched >= cutoff
 
 
-def prioritize(con, cfg, client, use_llm: bool) -> list[dict]:
+def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict]]:
     settings, weights = cfg["settings"], cfg["weights"]
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=settings["briefing"]["lookback_hours"])
@@ -337,6 +337,17 @@ def main():
             "why_it_matters": "", "exposure": "", "watch_next": "",
             "coverage_label": f'{a["source"]} coverage',
         })
+
+    # Historical awareness: add an "Additional context" note to any story that has
+    # related prior coverage in our database (Gemini-judged). Off unless
+    # additional_context.enabled is true in settings.yaml; fail-safe, populates nothing
+    # when there's no prior coverage, so it never alters a normal story's layout.
+    if use_llm:
+        try:
+            from src.prioritize import related_context
+            related_context.add_context(con, client, cfg, top, briefing)
+        except Exception as exc:
+            log.warning("additional-context step skipped (%s)", exc)
 
     html = emailer.render_html(briefing, date_h, settings["org"]["name"], store.failing_sources(con))
 

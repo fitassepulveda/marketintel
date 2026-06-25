@@ -95,6 +95,58 @@ class LLMClient:
         except (KeyError, IndexError) as exc:
             raise RuntimeError(f"Unexpected Gemini response shape: {data}") from exc
 
+    def web_research(self, model: str, system: str, prompt: str,
+                     max_tokens: int = 800) -> tuple[str, list[dict]]:
+        """Like complete(), but lets the model SEARCH THE LIVE WEB and returns
+        (answer_text, web_sources). web_sources is [{"title","uri"}] from the
+        grounding metadata — the real pages the model used.
+
+        Gemini: enables Google Search grounding. Note grounding can't be combined
+        with forced-JSON output, so callers should ask for JSON in the prompt and
+        parse leniently. Anthropic (or no grounding): falls back to complete() with
+        no web sources.
+        """
+        if self.provider != "gemini":
+            return self.complete(model, system, prompt, max_tokens), []
+
+        payload = {
+            "system_instruction": {"parts": [{"text": system}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "tools": [{"google_search": {}}],   # live web search grounding
+            "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0},
+        }
+        resp = None
+        for attempt in range(GEMINI_MAX_RETRIES):
+            wait = GEMINI_MIN_SECONDS_BETWEEN_CALLS - (time.time() - self._last_call)
+            if wait > 0:
+                time.sleep(wait)
+            resp = requests.post(
+                GEMINI_URL.format(model=model),
+                headers={"x-goog-api-key": self._gemini_key},
+                json=payload, timeout=120,
+            )
+            self._last_call = time.time()
+            if resp.status_code in (429, 500, 503) and attempt < GEMINI_MAX_RETRIES - 1:
+                backoff = min(GEMINI_BACKOFF_CAP, GEMINI_MIN_SECONDS_BETWEEN_CALLS * (2 ** attempt))
+                log.warning("Gemini web_research %s (overloaded); retry %d/%d in %ds",
+                            resp.status_code, attempt + 1, GEMINI_MAX_RETRIES - 1, backoff)
+                time.sleep(backoff)
+                continue
+            break
+        resp.raise_for_status()
+        data = resp.json()
+        try:
+            cand = data["candidates"][0]
+            text = "".join(p.get("text", "") for p in cand.get("content", {}).get("parts", []))
+        except (KeyError, IndexError) as exc:
+            raise RuntimeError(f"Unexpected Gemini response shape: {data}") from exc
+        sources = []
+        for chunk in cand.get("groundingMetadata", {}).get("groundingChunks", []) or []:
+            web = chunk.get("web") or {}
+            if web.get("uri"):
+                sources.append({"title": web.get("title", ""), "uri": web["uri"]})
+        return text, sources
+
     def embed(self, texts: list[str], model: str = GEMINI_EMBED_MODEL) -> list[list[float]]:
         """Return an embedding vector per input text (one batched Gemini call).
 

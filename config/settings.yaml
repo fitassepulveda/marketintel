@@ -364,3 +364,15 @@ yutori:
     max_stories: 3            # enrich only the top N selected stories (cost control)
     poll_timeout_seconds: 240 # give up waiting for results after this; never stalls the send
     poll_interval_seconds: 10
+
+# Additional context: for each briefed story, SEARCH THE LIVE WEB (Gemini + Google Search
+# grounding) for more/recent reporting AND check our own DB for related prior coverage,
+# then add an "Additional context" note to the email — ONLY when something material is
+# found. Uses Gemini's search grounding (generous free quota, then ~$35/1000 grounded
+# queries; a daily run is well within free limits). Fail-safe. OFF by default — turn on
+# after a --dry-run.
+additional_context:
+  enabled: false
+  lookback_days: 120          # how far back in the DB to look for related prior articles
+  max_related: 6              # max prior DB candidates shown to the model per story
+  max_stories: 12             # cap how many briefed stories get the web-search step

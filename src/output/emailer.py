@@ -230,6 +230,24 @@ def render_digest_html(stories: list[dict], date_str: str, org_short: str,
             f'&nbsp;&nbsp;<span style="background:#EAF0F8;color:#1F3864;padding:1px 7px;'
             f'border-radius:10px">LLM relevance {score}/10</span></span>'
         ) if score else ""
+        # Additional context (prior coverage) — rendered ONLY when populated.
+        ac = s.get("additional_context") or {}
+        ac_html = ""
+        if ac.get("summary") or ac.get("related") or ac.get("web"):
+            def _links(items):
+                return " &nbsp;·&nbsp; ".join(
+                    f'<a href="{escape(r.get("url",""))}" style="color:#1F3864">'
+                    f'{escape((r.get("title") or "source")[:80])}</a>'
+                    f'{(" (" + escape(r["date"]) + ")") if r.get("date") else ""}'
+                    for r in (items or []) if r.get("url"))
+            prior_links = _links(ac.get("related"))
+            web_links = _links(ac.get("web"))
+            ac_html = (
+                f'<p style="margin:5px 0;background:#F7F9FC;border-left:3px solid #6b7a90;'
+                f'padding:6px 10px"><b>Additional context:</b> {escape(ac.get("summary",""))}'
+                + (f'<br><span style="font-size:12px;color:#666">From the web: {web_links}</span>' if web_links else "")
+                + (f'<br><span style="font-size:12px;color:#666">Prior coverage: {prior_links}</span>' if prior_links else "")
+                + '</p>')
         parts.append(
             f'<p style="margin:26px 0 2px">'
             f'<span style="background:#1F3864;color:#fff;font-size:11px;font-weight:bold;'
@@ -243,6 +261,7 @@ def render_digest_html(stories: list[dict], date_str: str, org_short: str,
             f'<p style="margin:5px 0"><b>Institutional exposure:</b> {escape(s.get("exposure", ""))}</p>'
             f'<p style="margin:5px 0"><b>What to watch next:</b> '
             f'{escape(s.get("watch_next", ""))}</p>'
+            f'{ac_html}'
             f'<p style="margin:5px 0"><b>Supporting coverage:</b> '
             f'<a href="{url}" style="color:#1F3864">{escape(label)}</a></p>'
             f'<p style="margin:5px 0;color:#666;font-size:12px">'
