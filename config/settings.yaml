@@ -108,7 +108,9 @@ briefing:
       partnership, or service-line move in South Florida (new hospital/ER/institute/ambulatory
       center, a major gift, a system partnership) — especially in UHealth's expansion zones
       (North Miami/Aventura, Doral, Pinecrest, west Miami-Dade). Bears on growth, capacity,
-      recruiting, referrals. GEOGRAPHY GATES THIS: it applies to SOUTH FLORIDA competitors —
+      recruiting, referrals. ALSO HIGH (7-8): a competitor's MARKETING / COMMUNITY-OUTREACH /
+      community-investment / branding play in UHealth's region — it's competitive positioning and
+      a strategy UHealth may want to emulate, not just bricks-and-mortar. GEOGRAPHY GATES THIS: it applies to SOUTH FLORIDA competitors —
       Baptist, Jackson, Cleveland Clinic Florida, Memorial, HCA Florida, Holy Cross, Mount Sinai,
       Nicklaus. A competitor's expansion is high; a leadership change at one of them is mid (5-6).
       The SAME event at an OUT-OF-REGION system (Essentia, Franciscan Alliance, etc.) is NOISE
@@ -135,7 +137,14 @@ briefing:
       surface every AI story. Score LOW (2-4): biotech/pharma AI (UHealth is not a biotech or
       drugmaker), pieces about a specific vendor UHealth doesn't use, and generic "AI is
       transforming healthcare" commentary. The test is "could UHealth act on or adopt this?", not
-      "does it mention AI?"
+      "does it mention AI?" An FDA-CLEARED / regulatory-approved AI tool UHealth could deploy scores
+      HIGH (8) — clearance makes it adoptable now; a startup AI FUNDING ROUND with no regulatory or
+      adoptable movement is mid/low (~5). AI REGULATION / GOVERNANCE that UHealth must navigate as
+      it builds its own AI implementation pathways is relevant (~7) even when general.
+    - INTEGRATED PHARMACY (current UHealth project): UHealth is actively exploring an
+      integrated-pharmacy model, so stories on integrated-pharmacy models, pharmacy-workforce
+      build-out, or peers doing the same score HIGH (~8). Distinct from PBM/drug-pricing (NOT a
+      priority) — this is UHealth's own care-delivery project.
     - PARTNERSHIP ECOSYSTEM: moves by or affecting Jackson Health, Hospital for Special Surgery,
       the VA, Siemens, or Labcorp.
 
@@ -143,11 +152,10 @@ briefing:
     change, an early-stage policy proposal, a single FDA approval. Worth including only when
     nothing more actionable is available that day. ALSO HERE — "keep an eye on" items, good for
     exec AWARENESS on a slow day but NOT high scorers and NOT strategic vectors: healthcare
-    CYBERSECURITY / patient-data breaches (UHealth holds lots of patient data), RESEARCH
-    funding/policy color (UHealth is a research institution), and INTEGRATED-PHARMACY models /
-    news (UHealth is exploring an integrated-pharmacy project, so track developments there — this
-    is distinct from PBM/drug-pricing, which is NOT a priority). Surface when quiet; never high on
-    their own.
+    RESEARCH funding/policy color and general research/clinical-trial-policy items (relevant to
+    UHealth's research arm but mid for a STRATEGY audience; ~5). Surface when quiet; not high on
+    their own. NOTE: CYBERSECURITY / patient-data breaches are NOT a Strategy-team function —
+    they matter to other stakeholders, so keep them low (awareness only, not a priority here).
 
     LOW (1-4): not actionable; general market/industry trends; third-party disputes without
     direct UHealth impact; routine forecasts with no active threat; opinion pieces; awareness-only.
@@ -158,10 +166,41 @@ briefing:
     with the lowest readmissions", "top 10 systems by revenue") and GENERIC OPERATIONAL
     THOUGHT-LEADERSHIP / management how-to / culture pieces (procurement best practices, "crisis
     culture", safety-event op-eds). These are content marketing, not intelligence.
+    Score 1-2 — NOT relevant to UHealth's strategy or geography: RURAL-specific policy/funding
+    (UHealth is urban South Florida — rural health funds / rural CMS programs don't apply);
+    OUT-OF-REGION research or clinical programs (e.g. a Boston Children's research launch — wrong
+    geography, and not a UHealth flagship line); pure CLINICAL / SCIENTIFIC DISCOVERIES (a tumor-
+    mapping study) — for clinical teams, not strategy, UNLESS it's an external development hitting a
+    UHealth flagship line; INDIVIDUAL CRIME stories (one person's fraud/arrest); and general
+    REGULATORY / LEGAL filings (amicus briefs, routine rulemaking) that legal/ops teams already own.
 
     EXCEPTION: a genuinely major public-health or policy development of broad importance
     (e.g. a global pandemic agreement, a region-wide health emergency) may score high even if
     "general," because leadership must be aware of it.
+
+    DAILY-REVIEW CALIBRATION (real exec notes, 2026-06-23) — apply this judgment:
+    - "Broward Health marks construction milestone on a new medical office" -> 10: SF competitor
+      capacity/expansion — must-know.
+    - "Memorial Cardiac & Vascular Institute community-outreach / marketing event in the region" -> 8:
+      a competitor's marketing/community-investment play in UHealth's region (positioning to emulate).
+    - "Cleveland Clinic Florida announces 2026 community investment" -> 7: competitor marketing/
+      community investment — worth seeing on a slow day.
+    - "How 3 health systems are growing their own pharmacy workforce" -> 8: integrated-pharmacy /
+      pharmacy-workforce — a current UHealth project, surface these.
+    - "OpenEvidence will add FDA-cleared AI to detect heart conditions" -> 8: FDA-cleared = UHealth
+      could actually adopt it.
+    - "Cadence raises $100M to automate chronic-disease management" -> 5: a funding round, no
+      regulatory/adoptable movement — slow-day at best.
+    - "States surge ahead on healthcare AI regulation" -> 7: AI governance UHealth must navigate as
+      it builds AI pathways (relevant even though general).
+    - "CDC nominee prepares to depart UnitedHealth" -> 9: it's UnitedHealth (current-watch).
+    - "Boston Children's launches a neurologic drug research program" -> 2: out-of-region research,
+      not a UHealth flagship line.
+    - "CMS tightens its grip on a $50B RURAL health fund" -> 2: rural funding, not UHealth's urban geography.
+    - "Florida woman admits to selling fake nursing diplomas" -> 1: one person's crime — nothing for strategy.
+    - "AHA files an amicus brief challenging HHS/CMS" -> 3: general legal filing legal/ops already own.
+    - "Spatial map of bladder cancer reveals the tumor environment" -> 2: a clinical/scientific
+      discovery, not a strategy item.
 
     DAILY-REVIEW CALIBRATION (real exec notes, 2026-06-22) — apply this judgment:
     - "Cleveland Clinic medical office project moves forward in Florida" -> 9: a South Florida
