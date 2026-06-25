@@ -242,6 +242,40 @@ def _send_html(settings, subject: str, body_html: str, dry_run: bool,
     return True
 
 
+def _send_personalized(settings, briefing, date_h, failing, dry_run, run_date, out_dir):
+    """Deliver the exec-summary report to each ACTIVE profile with a personal greeting.
+
+    Returns None if no profiles are configured (caller falls back to the shared digest),
+    True if at least one real email was sent, or False if profiles exist but nothing was
+    sent (dry run / SMTP not ready) — so dedup is only consumed on a real send.
+    """
+    from src import profiles as profiles_mod
+    profs = profiles_mod.active_profiles()
+    if not profs:
+        return None
+    org_name = settings["org"]["name"]
+    subject = f'{settings["briefing"]["subject_prefix"]} — {date_h}'
+    smtp_ready = all(config.env(k, required=False) for k in
+                     ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "EMAIL_FROM"))
+    sent_any = False
+    for p in profs:
+        greeting = p.get("display_name") or p.get("name", "")
+        html = emailer.render_html(briefing, date_h, org_name, failing, greeting=greeting)
+        tag = (p.get("name", "profile").split() or ["profile"])[0].lower()
+        (out_dir / f"{run_date}_{tag}.html").write_text(html, encoding="utf-8")
+        if dry_run or not smtp_ready or not p.get("email"):
+            log.info("Personalized briefing for %s saved%s.", p.get("name"),
+                     " (dry run)" if dry_run else " but NOT sent (SMTP not ready / no email)")
+            continue
+        emailer.send(html, subject, {
+            "host": config.env("SMTP_HOST"), "port": config.env("SMTP_PORT"),
+            "user": config.env("SMTP_USER"), "password": config.env("SMTP_PASS"),
+            "from": config.env("EMAIL_FROM"), "to": [p["email"]]}, subtype="html")
+        log.info("Personalized briefing emailed to %s <%s>", p.get("name"), p["email"])
+        sent_any = True
+    return sent_any
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="don't send email; save HTML locally")
@@ -349,7 +383,8 @@ def main():
         except Exception as exc:
             log.warning("additional-context step skipped (%s)", exc)
 
-    html = emailer.render_html(briefing, date_h, settings["org"]["name"], store.failing_sources(con))
+    failing = store.failing_sources(con)
+    html = emailer.render_html(briefing, date_h, settings["org"]["name"], failing)
 
     # Email digest for the top N stories (HTML, with larger titles). Captured/Published
     # dates are matched from the DB rows (by url, then title). Plain text saved too.
@@ -365,8 +400,13 @@ def main():
     (out_dir / f"{run_date}_digest.txt").write_text(digest, encoding="utf-8")
     (out_dir / f"{run_date}_digest.html").write_text(digest_html, encoding="utf-8")
 
-    sent = _send_html(settings, f'{settings["briefing"]["subject_prefix"]} — {date_h}',
-                      digest_html, args.dry_run, run_date, label="Digest")
+    # Delivery: if executive profiles are configured, send each person their own copy
+    # (exec-summary format + personal greeting). Otherwise fall back to the single shared
+    # digest to digest_recipients (legacy behavior).
+    sent = _send_personalized(settings, briefing, date_h, failing, args.dry_run, run_date, out_dir)
+    if sent is None:
+        sent = _send_html(settings, f'{settings["briefing"]["subject_prefix"]} — {date_h}',
+                          digest_html, args.dry_run, run_date, label="Digest")
 
     # Only consume dedup state when the briefing actually went out — a dry run or a
     # failed/skipped send must not mark stories as already-briefed.

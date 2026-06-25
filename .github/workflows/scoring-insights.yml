@@ -12,6 +12,9 @@ on:
     - cron: "0 14 * * 1,4"
   workflow_dispatch: {}
 
+permissions:
+  contents: write   # to commit accumulated sub-scores back (so "all-time" grows)
+
 jobs:
   insights:
     runs-on: ubuntu-latest
@@ -38,6 +41,19 @@ jobs:
           INSIGHTS_EMAIL_TO: ${{ vars.INSIGHTS_EMAIL_TO || 'fxs1141@miami.edu' }}
           INSIGHTS_WINDOW_DAYS: "7"
         run: python scripts/scoring_insights.py
+
+      - name: Persist accumulated sub-scores
+        if: success()
+        run: |
+          git add -f data/intel.db
+          if git diff --cached --quiet; then
+            echo "No database changes to commit."
+          else
+            git config user.name  "marketintel-bot"
+            git config user.email "um.marketintel.bot@users.noreply.github.com"
+            git commit -m "chore: accumulate sub-scores from insights run [skip ci]"
+            git push || (git pull --rebase --autostash && git push)
+          fi
 
       - name: Upload workbook artifact
         if: always()

@@ -84,6 +84,15 @@ def backfill_subscores(con, client, cfg, pool: list[dict]):
 
 
 # ----- analysis -------------------------------------------------------------
+def mean_rewards(rows: list[dict]) -> dict:
+    """Average sub-score (0-10) per dimension — 'how much the model rewards each
+    dimension on average' — over the given rows."""
+    rows = [r for r in rows if r.get("subscores")]
+    if not rows:
+        return {d: 0.0 for d in DIMS}
+    return {d: float(np.mean([float(r["subscores"].get(d, 0)) for r in rows])) for d in DIMS}
+
+
 def analyze(pool: list[dict]) -> dict:
     rows = [a for a in pool if a.get("subscores") and a.get("llm_score") is not None]
     n = len(rows)
@@ -147,32 +156,39 @@ def _hdr(ws, row, ncols):
 def build_workbook(a: dict, out: Path):
     wb = Workbook()
 
-    # Sheet 1 — what the model rewards
+    # Sheet 1 — what the model rewards (avg score per dimension: last day vs all-time)
+    means_last = a.get("means_last", {})
+    means_all = a.get("means_all", {})
+    infl = {d: float(i) for d, i in zip(DIMS, a["influence"])}
     ws = wb.active
     ws.title = "What the Model Rewards"
-    ws.append([f"Based on {a['n']} scored articles"
-               + (f"  |  regression R^2 = {a['r2']:.2f}" if a["r2"] is not None else "  |  (regression needs >=15 articles)")])
+    ws.append([f"Average reward per dimension (0-10 score the model gave). "
+               f"Last day: {a.get('n_last', 0)} articles  |  All-time: {a.get('n_all', a['n'])} articles."])
     ws["A1"].font = Font(italic=True, name="Arial")
-    ws.append(["Dimension", "Influence (share)", "Correlation w/ relevance"])
-    _hdr(ws, 2, 3)
-    ranked = sorted(zip(DIMS, a["influence"], a["corr_rel"]), key=lambda x: -x[1])
-    for d, inf, cr in ranked:
-        ws.append([d, round(float(inf), 4), round(float(cr), 3)])
+    ws.append(["Dimension", "Reward (last day)", "Reward (all-time)", "Influence on relevance"])
+    _hdr(ws, 2, 4)
+    ranked = sorted(DIMS, key=lambda d: means_all.get(d, 0), reverse=True)
+    for d in ranked:
+        ws.append([d, round(means_last.get(d, 0), 2), round(means_all.get(d, 0), 2),
+                   round(infl.get(d, 0), 4)])
     for r in range(3, 3 + len(DIMS)):
         ws.cell(r, 1).font = BODY
-        ws.cell(r, 2).number_format = "0.0%"
         ws.cell(r, 2).font = BODY
         ws.cell(r, 3).font = BODY
+        ws.cell(r, 4).number_format = "0.0%"
+        ws.cell(r, 4).font = BODY
     ws.column_dimensions["A"].width = 24
-    ws.column_dimensions["B"].width = 18
-    ws.column_dimensions["C"].width = 24
+    ws.column_dimensions["B"].width = 16
+    ws.column_dimensions["C"].width = 16
+    ws.column_dimensions["D"].width = 20
     ch = BarChart()
     ch.type = "bar"
-    ch.title = "What the LLM rewards (influence on relevance score)"
-    ch.add_data(Reference(ws, min_col=2, min_row=2, max_row=2 + len(DIMS)), titles_from_data=True)
+    ch.title = "What the model rewards — avg score per dimension (last day vs all-time)"
+    ch.y_axis.title = "Average score (0-10)"
+    ch.add_data(Reference(ws, min_col=2, max_col=3, min_row=2, max_row=2 + len(DIMS)), titles_from_data=True)
     ch.set_categories(Reference(ws, min_col=1, min_row=3, max_row=2 + len(DIMS)))
     ch.height, ch.width = 9, 18
-    ws.add_chart(ch, "E2")
+    ws.add_chart(ch, "F2")
 
     # Sheet 2 — dimension correlation heatmap
     ws2 = wb.create_sheet("Dimension Correlations")
@@ -274,7 +290,18 @@ def main():
 
     client = LLMClient(cfg["settings"]["llm"]["provider"])
     backfill_subscores(con, client, cfg, pool)
-    a = analyze(pool)
+
+    # All-time = every sub-scored article in the DB; last-day = those fetched in the
+    # last 24h. The "What the Model Rewards" chart compares these two.
+    all_pool = [r for r in subscores.load_scored(con) if r.get("llm_score") is not None]
+    day_ago = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    last_pool = [r for r in all_pool if (r.get("fetched") or "") >= day_ago]
+
+    a = analyze(all_pool)
+    a["means_all"] = mean_rewards(all_pool)
+    a["means_last"] = mean_rewards(last_pool)
+    a["n_all"] = len(all_pool)
+    a["n_last"] = len(last_pool)
 
     run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     date_h = datetime.now().strftime("%A, %B %d, %Y")
