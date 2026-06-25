@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import datetime, timedelta, timezone
+from html import escape
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -58,6 +59,19 @@ def ensure_subscores(con, client, cfg, pool: list[dict]) -> None:
                 a["subscores"] = {}
 
 
+def shared_selection(pool: list[dict], settings: dict) -> list[dict]:
+    """Mirror run_briefing's selection: top stories by the house composite score, using
+    the same select_threshold / min / max. Used for name-only profiles so their report
+    matches the shared briefing (only the greeting differs)."""
+    s = sorted(pool, key=lambda a: a.get("composite_score") or 0, reverse=True)
+    b = settings["briefing"]
+    sel_t = b.get("select_threshold", 90)
+    mn = b.get("min_stories", 5)
+    mx = b.get("max_stories", 12)
+    strong = [a for a in s if (a.get("composite_score") or 0) >= sel_t]
+    return strong[:mx] if len(strong) >= mn else s[:mn]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
@@ -88,38 +102,66 @@ def main():
         return
 
     client = LLMClient(cfg["settings"]["llm"]["provider"])
-    ensure_subscores(con, client, cfg, pool)
-
     weights = cfg["weights"]
     settings = cfg["settings"]
+    org_name = settings["org"]["name"]
     date_h = datetime.now().strftime("%A, %B %d, %Y")
-    org_short = settings["org"].get("short_name", settings["org"]["name"])
     models = settings["llm"]["models"][settings["llm"]["provider"]]
     out_dir = config.DATA_DIR / "briefings"
     out_dir.mkdir(exist_ok=True)
     run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    failing = store.failing_sources(con)
+
+    def _has_custom(p):
+        return ("subscore_weights" in p) or ("ahp_pairwise" in p)
+
+    # Sub-scoring is only needed for profiles that personalize CONTENT; skip it entirely
+    # (and its API cost) when every active profile is name-only.
+    if any(_has_custom(p) for p in profs):
+        ensure_subscores(con, client, cfg, pool)
+
+    # Name-only profiles all share ONE synthesized report (identical to the shared
+    # briefing); build it once, then render per person so only the greeting differs.
+    shared_briefing, shared_count = None, 0
+    if any(not _has_custom(p) for p in profs):
+        shared = shared_selection(pool, settings)
+        if shared:
+            shared_briefing = synthesize.build_briefing(
+                client, models["synthesis"], settings["llm"]["max_tokens_synthesis"],
+                settings["org"], settings["key_questions"], shared)
+            shared_count = len(shared)
 
     for p in profs:
-        ranked = P.rank_for_profile(p, weights, pool)
-        if not ranked:
-            print(f"{p['name']}: nothing above their threshold today.")
-            continue
-        briefing = synthesize.build_briefing(
-            client, models["synthesis"], settings["llm"]["max_tokens_synthesis"],
-            settings["org"], settings["key_questions"], ranked)
-        html = emailer.render_digest_html(briefing["stories"], date_h, org_short,
-                                          articles=ranked, top_n=len(ranked), runners=None)
+        greeting_name = p.get("display_name") or p.get("name", "")
+        if _has_custom(p):
+            ranked = P.rank_for_profile(p, weights, pool)
+            if not ranked:
+                print(f"{p['name']}: nothing above their threshold today.")
+                continue
+            briefing = synthesize.build_briefing(
+                client, models["synthesis"], settings["llm"]["max_tokens_synthesis"],
+                settings["org"], settings["key_questions"], ranked)
+            count = len(ranked)
+        else:
+            if not shared_briefing:
+                print(f"{p['name']}: no stories to brief today.")
+                continue
+            briefing, count = shared_briefing, shared_count
+
+        # Use the executive-summary format (takeaways + key-question answers + stories)
+        # with the greeting folded into the header so it reads as one unified report.
+        html = emailer.render_html(briefing, date_h, org_name, failing, greeting=greeting_name)
         tag = p["name"].split()[0].lower()
         (out_dir / f"{run_date}_{tag}.html").write_text(html, encoding="utf-8")
         subject = f'{settings["briefing"]["subject_prefix"]} — {p.get("title","")} — {date_h}'
         if args.dry_run:
-            print(f"Dry run: {p['name']} briefing saved ({len(ranked)} stories), not sent.")
+            print(f"Dry run: {p['name']} briefing saved ({count} stories), not sent.")
         else:
             emailer.send(html, subject, {
                 "host": config.env("SMTP_HOST"), "port": config.env("SMTP_PORT"),
                 "user": config.env("SMTP_USER"), "password": config.env("SMTP_PASS"),
                 "from": config.env("EMAIL_FROM"), "to": [p["email"]]}, subtype="html")
-            print(f"Sent {p['name']} briefing ({len(ranked)} stories) to {p['email']}.")
+            print(f"Sent {p['name']} briefing ({count} stories) to {p['email']}.")
 
 
 if __name__ == "__main__":

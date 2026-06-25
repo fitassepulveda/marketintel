@@ -17,12 +17,15 @@ AREA_LABELS = {
 }
 
 
-def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]) -> str:
+def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str],
+                greeting: str | None = None) -> str:
     def sec(title):
         return f'<h2 style="color:#1F3864;font-size:16px;margin:24px 0 8px">{escape(title)}</h2>'
 
     parts = [
         '<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#222">',
+        (f'<p style="font-size:15px;color:#222;margin:0 0 6px">Good morning {escape(greeting)},</p>'
+         if greeting else ''),
         f'<h1 style="color:#1F3864;font-size:20px">Market Intelligence Briefing — {escape(date_str)}</h1>',
         f'<p style="color:#666;font-size:12px;margin-top:-8px">{escape(org_name)} · Highly Confidential</p>',
         sec("Top-Line Takeaways"), "<ol>",
