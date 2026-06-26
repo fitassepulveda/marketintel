@@ -33,6 +33,7 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 import numpy as np
+import yaml
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
 from openpyxl.formatting.rule import ColorScaleRule
@@ -40,9 +41,21 @@ from openpyxl.styles import Alignment, Font, PatternFill
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src import config, store                       # noqa: E402
+from src import ahp, config, store                  # noqa: E402
 from src.llm_client import LLMClient                 # noqa: E402
 from src.prioritize import subscores                 # noqa: E402
+
+
+def preset_weights() -> dict:
+    """The PRESET (prescriptive) weight per dimension — derived from our AHP pairwise
+    judgments in config/ahp.yaml. This is 'what we said should matter', to compare
+    against what the data shows actually drives the score."""
+    try:
+        pw = yaml.safe_load(open(config.CONFIG_DIR / "ahp.yaml")).get("pairwise", {})
+        w = ahp.ahp_weights(ahp.matrix_from_pairwise(DIMS, pw))["weights"]
+        return dict(zip(DIMS, w))
+    except Exception:
+        return {d: 1.0 / len(DIMS) for d in DIMS}
 
 DIMS = subscores.DIMENSIONS
 NAVY = "1F3864"
@@ -71,13 +84,30 @@ def load_pool(con, window_days: int) -> list[dict]:
     return pool
 
 
-def backfill_subscores(con, client, cfg, pool: list[dict]):
-    todo = [a for a in pool if not a.get("subscores")]
+def _complete(subs) -> bool:
+    """True if a row's sub-scores cover every CURRENT dimension AND aren't all-zero.
+    Adding new dimensions (missing keys) OR an all-zero set (the signature of a
+    failed/throttled scoring batch) both count as incomplete, so they get re-scored
+    rather than polluting the averages with zeros."""
+    if not subs or (set(DIMS) - set(subs)):
+        return False
+    return any(float(v) > 0 for v in subs.values())
+
+
+def backfill_subscores(con, client, cfg, pool: list[dict], max_items: int = 40):
+    """Sub-score articles missing the current dimensions — but at most `max_items` per
+    run (freshest first), so a one-time backlog (e.g. after adding dimensions) is spread
+    over several runs instead of a single burst that trips Gemini's free-tier limits."""
+    todo = [a for a in pool if not _complete(a.get("subscores"))]
     if not todo:
         return
+    todo.sort(key=lambda a: (a.get("fetched") or ""), reverse=True)
+    todo = todo[:max_items]
     models = cfg["settings"]["llm"]["models"][cfg["settings"]["llm"]["provider"]]
     res = subscores.score_batch(client, models["scoring"], cfg["settings"]["org"], todo)
     for art, ss in zip(todo, res):
+        if not (ss and any(float(v) > 0 for v in ss.values())):
+            continue  # failed/throttled batch came back all-zero — don't persist it
         subscores.save(con, art["id"], ss)
         art["subscores"] = ss
     con.commit()
@@ -109,7 +139,7 @@ def analyze(pool: list[dict]) -> dict:
     influence = infl / infl.sum() if infl.sum() > 0 else np.zeros(len(DIMS))
 
     # regression view (only meaningful with enough data)
-    r2, coef = None, None
+    r2, coef, r2_ext = None, None, None
     if n >= 15:
         A = np.column_stack([X, np.ones(n)])
         beta, *_ = np.linalg.lstsq(A, y, rcond=None)
@@ -118,6 +148,17 @@ def analyze(pool: list[dict]) -> dict:
         ss_res = float(((y - pred) ** 2).sum())
         ss_tot = float(((y - y.mean()) ** 2).sum())
         r2 = 1 - ss_res / ss_tot if ss_tot > 0 else None
+
+        # Extended: how much MORE variance is explained when we ALSO include the
+        # intelligence area — a factor outside the six dimensions that influences the
+        # score. The lift from r2 to r2_ext = how much "area" explains on its own.
+        areas_u = sorted({row["area"] for row in rows})
+        if len(areas_u) > 1 and ss_tot > 0:
+            dummies = [np.array([1.0 if row["area"] == ar else 0.0 for row in rows]) for ar in areas_u[1:]]
+            A2 = np.column_stack([X] + dummies + [np.ones(n)])
+            b2, *_ = np.linalg.lstsq(A2, y, rcond=None)
+            p2 = A2 @ b2
+            r2_ext = 1 - float(((y - p2) ** 2).sum()) / ss_tot
 
     # 6x6 correlation matrix among dimensions
     cmat = np.corrcoef(X, rowvar=False) if n >= 3 else np.eye(len(DIMS))
@@ -141,7 +182,8 @@ def analyze(pool: list[dict]) -> dict:
         by_area.append({"area": ar, "n": len(items), "avg_relevance": float(ys.mean()), **means})
 
     return {"n": n, "corr_rel": corr_rel, "influence": influence, "coef": coef, "r2": r2,
-            "cmat": cmat, "dist": dist, "by_area": by_area, "avg_relevance": float(y.mean()) if n else 0.0}
+            "r2_ext": r2_ext, "cmat": cmat, "dist": dist, "by_area": by_area,
+            "avg_relevance": float(y.mean()) if n else 0.0}
 
 
 # ----- workbook -------------------------------------------------------------
@@ -160,27 +202,31 @@ def build_workbook(a: dict, out: Path):
     means_last = a.get("means_last", {})
     means_all = a.get("means_all", {})
     infl = {d: float(i) for d, i in zip(DIMS, a["influence"])}
+    preset = preset_weights()
     ws = wb.active
     ws.title = "What the Model Rewards"
+    r2s = f"{a['r2']:.2f}" if a.get("r2") is not None else "n/a"
+    r2e = f"{a['r2_ext']:.2f}" if a.get("r2_ext") is not None else "n/a"
     ws.append([f"Average reward per dimension (0-10 score the model gave). "
-               f"Last day: {a.get('n_last', 0)} articles  |  All-time: {a.get('n_all', a['n'])} articles."])
+               f"Last day: {a.get('n_last', 0)} articles  |  All-time: {a.get('n_all', a['n'])} articles.   "
+               f"Variance explained — dimensions: R²={r2s};  + intelligence area: R²={r2e}."])
     ws["A1"].font = Font(italic=True, name="Arial")
-    ws.append(["Dimension", "Reward (last day)", "Reward (all-time)", "Influence on relevance"])
-    _hdr(ws, 2, 4)
+    ws.append(["Dimension", "Reward (last day)", "Reward (all-time)",
+               "Influence on relevance", "Preset weight (AHP)"])
+    _hdr(ws, 2, 5)
     ranked = sorted(DIMS, key=lambda d: means_all.get(d, 0), reverse=True)
     for d in ranked:
         ws.append([d, round(means_last.get(d, 0), 2), round(means_all.get(d, 0), 2),
-                   round(infl.get(d, 0), 4)])
+                   round(infl.get(d, 0), 4), round(float(preset.get(d, 0)), 4)])
     for r in range(3, 3 + len(DIMS)):
         ws.cell(r, 1).font = BODY
         ws.cell(r, 2).font = BODY
         ws.cell(r, 3).font = BODY
-        ws.cell(r, 4).number_format = "0.0%"
-        ws.cell(r, 4).font = BODY
+        ws.cell(r, 4).number_format = "0.0%"; ws.cell(r, 4).font = BODY
+        ws.cell(r, 5).number_format = "0.0%"; ws.cell(r, 5).font = BODY
     ws.column_dimensions["A"].width = 24
-    ws.column_dimensions["B"].width = 16
-    ws.column_dimensions["C"].width = 16
-    ws.column_dimensions["D"].width = 20
+    for col in ("B", "C", "D", "E"):
+        ws.column_dimensions[col].width = 18
     ch = BarChart()
     ch.type = "bar"
     ch.title = "What the model rewards — avg score per dimension (last day vs all-time)"
@@ -188,9 +234,33 @@ def build_workbook(a: dict, out: Path):
     ch.add_data(Reference(ws, min_col=2, max_col=3, min_row=2, max_row=2 + len(DIMS)), titles_from_data=True)
     ch.set_categories(Reference(ws, min_col=1, min_row=3, max_row=2 + len(DIMS)))
     ch.height, ch.width = 9, 18
-    ws.add_chart(ch, "F2")
+    ws.add_chart(ch, "G2")
 
-    # Sheet 2 — dimension correlation heatmap
+    # Sheet 2 — preset (what we SAID should matter) vs observed (what drives the score)
+    wsP = wb.create_sheet("Preset vs Observed", 1)
+    wsP.append(["Our PRESET priorities (AHP weights) vs what the data shows actually drives the score."])
+    wsP["A1"].font = Font(italic=True, name="Arial")
+    wsP.append(["Dimension", "Preset weight (AHP)", "Observed influence"])
+    _hdr(wsP, 2, 3)
+    for d in sorted(DIMS, key=lambda d: preset.get(d, 0), reverse=True):
+        wsP.append([d, round(float(preset.get(d, 0)), 4), round(infl.get(d, 0), 4)])
+    for r in range(3, 3 + len(DIMS)):
+        wsP.cell(r, 1).font = BODY
+        wsP.cell(r, 2).number_format = "0.0%"; wsP.cell(r, 2).font = BODY
+        wsP.cell(r, 3).number_format = "0.0%"; wsP.cell(r, 3).font = BODY
+    wsP.column_dimensions["A"].width = 24
+    wsP.column_dimensions["B"].width = 20
+    wsP.column_dimensions["C"].width = 20
+    chP = BarChart(); chP.type = "bar"
+    chP.title = "Preset priority (AHP) vs observed influence"
+    chP.add_data(Reference(wsP, min_col=2, max_col=3, min_row=2, max_row=2 + len(DIMS)), titles_from_data=True)
+    chP.set_categories(Reference(wsP, min_col=1, min_row=3, max_row=2 + len(DIMS)))
+    chP.height, chP.width = 10, 18
+    wsP.add_chart(chP, "E2")
+    wsP.cell(3 + len(DIMS) + 1, 1,
+             "Big gaps = where our stated priorities and the model's actual behavior diverge.").font = Font(italic=True, name="Arial")
+
+    # Sheet 3 — dimension correlation heatmap
     ws2 = wb.create_sheet("Dimension Correlations")
     ws2.append([""] + DIMS)
     _hdr(ws2, 1, len(DIMS) + 1)
@@ -277,6 +347,8 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-email", action="store_true")
     ap.add_argument("--window-days", type=int, default=int(os.environ.get("INSIGHTS_WINDOW_DAYS", 7)))
+    ap.add_argument("--max-subscore", type=int, default=int(os.environ.get("INSIGHTS_MAX_SUBSCORE", 40)),
+                    help="cap how many articles get sub-scored per run (avoids free-tier rate limits)")
     args = ap.parse_args()
 
     cfg = config.load_all()
@@ -289,11 +361,14 @@ def main():
         return
 
     client = LLMClient(cfg["settings"]["llm"]["provider"])
-    backfill_subscores(con, client, cfg, pool)
+    backfill_subscores(con, client, cfg, pool, max_items=args.max_subscore)
 
     # All-time = every sub-scored article in the DB; last-day = those fetched in the
     # last 24h. The "What the Model Rewards" chart compares these two.
-    all_pool = [r for r in subscores.load_scored(con) if r.get("llm_score") is not None]
+    # All-time uses only fully-scored rows (every current dimension present), so adding
+    # new dimensions doesn't dilute their averages with zeros from older articles.
+    all_pool = [r for r in subscores.load_scored(con)
+                if r.get("llm_score") is not None and _complete(r.get("subscores"))]
     day_ago = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
     last_pool = [r for r in all_pool if (r.get("fetched") or "") >= day_ago]
 
