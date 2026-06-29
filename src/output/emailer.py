@@ -124,7 +124,13 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
         groups.setdefault(s.get("area", ""), []).append(s)
     for g in groups.values():
         g.sort(key=_score, reverse=True)
-    ordered_areas = sorted(groups, key=lambda a: max(_score(s) for s in groups[a]), reverse=True)
+
+    def _area_avg(area):
+        vals = [_score(s) for s in groups[area] if _score(s) >= 0]
+        return sum(vals) / len(vals) if vals else -1.0
+
+    # Order the snapshot areas by their AVERAGE relevance (high -> low), not the top score.
+    ordered_areas = sorted(groups, key=_area_avg, reverse=True)
 
     parts = [
         '<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#222;'
@@ -142,10 +148,13 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
     snap = []
     for area in ordered_areas:
         accent, tint = AREA_COLORS.get(area, DEFAULT_AREA_COLOR)
+        a_avg = _area_avg(area)
+        avg_txt = f"{a_avg:.1f}" if a_avg >= 0 else "—"
         snap.append(
             f'<span style="background:{tint};color:{accent};font-size:11px;font-weight:bold;'
             f'padding:1px 7px;border-radius:3px;white-space:nowrap;display:inline-block;'
-            f'margin:0 4px 3px 0">{escape(AREA_LABELS.get(area, area))} &nbsp;{len(groups[area])}</span>'
+            f'margin:0 4px 3px 0">{escape(AREA_LABELS.get(area, area))} &nbsp;·&nbsp; avg '
+            f'{avg_txt}/10 &nbsp;·&nbsp; {len(groups[area])}</span>'
         )
     parts.append(sec("Coverage snapshot"))
     parts.append('<p style="margin:0 0 3px">' + "".join(snap) + '</p>')
