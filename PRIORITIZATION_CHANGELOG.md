@@ -29,6 +29,16 @@ Driven by feedback on `feedback_2026-06-29.xlsx`. All in `briefing.relevance_gui
   discharge → 2-3), drug-pricing/Medicare-prescription (→ 2-3), ESG/AI commentary (→ 3), and
   generic AI thought-leadership (→ 2-3).
 
+## Competitor location verification (2026-06-29)
+
+- **NEW — verify location on name collisions.** An Alabama "Jackson Hospital" was scored as Miami's
+  Jackson Health System on the name alone. Added a rule to `relevance_guidance`: before scoring any
+  story as a competitor, confirm it's the SOUTH FLORIDA institution (Miami-Dade/Broward/Palm Beach
+  via dateline/city/address). Same-name out-of-region institutions = noise (1-2); unconfirmed
+  location = score low (2-3). Sole exception: the source is the competitor's own website (Yutori
+  scout on their newsroom). Names that collide: Jackson (AL), Baptist Health (KY/TN/AL/TX), Mount
+  Sinai (NY), Memorial (many states).
+
 ## Briefing format (2026-06-29)
 
 - `src/output/emailer.py` (`render_html`): removed the **Key Question Answers** section; added a

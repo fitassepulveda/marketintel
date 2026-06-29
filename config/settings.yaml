@@ -138,6 +138,18 @@ briefing:
       Nicklaus. A competitor's expansion is high; a leadership change at one of them is mid (5-6).
       The SAME event at an OUT-OF-REGION system (Essentia, Franciscan Alliance, etc.) is NOISE
       (1-2) — UHealth doesn't compete with them.
+      VERIFY LOCATION — NAME COLLISIONS (critical). Many competitor names are NOT unique to South
+      Florida: "Jackson Hospital" in Montgomery, ALABAMA is a DIFFERENT institution from Jackson
+      Health System / Jackson Memorial in Miami; "Baptist Health" exists in KY/TN/AL/TX (only
+      Baptist Health SOUTH FLORIDA is our competitor); "Mount Sinai" in New York is not Mount Sinai
+      Medical Center of Florida (Miami Beach); "Memorial" hospitals exist in many states. Before
+      scoring ANY story as one of our competitors, CONFIRM the institution is the SOUTH FLORIDA
+      one (Miami-Dade, Broward, or Palm Beach — check the dateline, city, or address in the text).
+      If the location is another state/region, it is OUT-OF-REGION NOISE (1-2) no matter how
+      closely the name matches. If the location CANNOT be confirmed from the article, do NOT assume
+      it is the local competitor — treat it as unverified and score it low (2-3). SOLE EXCEPTION:
+      if the source is the competitor's OWN website (a Yutori scout on their newsroom, e.g.
+      jacksonhealth.org), the location is already verified and this check is satisfied.
     - FEDERAL/STATE FUNDING & POLICY for academic medicine: NIH / research-grant funding changes
       (UHealth runs ~$178.8M NIH), Medicare/Medicaid reimbursement, 340B, graduate medical
       education, academic-medical-center policy. Big financial/strategic exposure — score high.
@@ -224,6 +236,9 @@ briefing:
       Medicare prescription — pharmacy/drug-pricing is NOT a UHealth priority; no direct relevance.
     - "A more connected approach for AI in healthcare" -> 2-3: generic AI thought-leadership, too
       broad, no direct implication for UHealth — not actionable.
+    - "Jackson Hospital (Montgomery, Alabama) announces ..." -> 1-2: NAME COLLISION — this is the
+      ALABAMA Jackson, NOT Miami's Jackson Health System. Verify location before treating any
+      name-matched story as our competitor; out-of-region same-name institutions are noise.
 
     DAILY-REVIEW CALIBRATION (real strategy-team notes, 2026-06-25) — apply this judgment:
     - "School Board approves property sale to Broward Health" -> 10: SF competitor land/capacity
