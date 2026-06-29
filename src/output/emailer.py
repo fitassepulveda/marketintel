@@ -20,7 +20,7 @@ AREA_LABELS = {
 
 # Per-area color coding: (accent — used for the left bar + chip text, chip background tint).
 AREA_COLORS = {
-    "national_policy":           ("#1F3864", "#EAF1FB"),
+    "national_policy":           ("#C2185B", "#FCE4EC"),
     "south_florida_competitive": ("#C0392B", "#FDECEA"),
     "payer_insurance":           ("#6B3FA0", "#F0EAFB"),
     "innovation_ai":             ("#0B7C77", "#E4F7F5"),
