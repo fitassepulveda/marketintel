@@ -185,7 +185,8 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
             f'<p {fld}><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
             f'<p {fld}><b>Why it matters:</b> {escape(s.get("why_it_matters", ""))}</p>'
             f'<p {fld}><b>Exposure:</b> {escape(s.get("exposure", ""))}</p>'
-            + (f'<p {fld}><b>Next steps:</b> {escape(next_steps)}</p>' if next_steps else "")
+            + (f'<p {fld}><b>What UHealth should consider:</b> {escape(next_steps)}</p>'
+               if next_steps else "")
             + '</div>'
         )
 
