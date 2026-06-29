@@ -154,7 +154,7 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
             f'<span style="background:{tint};color:{accent};font-size:11px;font-weight:bold;'
             f'padding:1px 7px;border-radius:3px;white-space:nowrap;display:inline-block;'
             f'margin:0 4px 3px 0">{escape(AREA_LABELS.get(area, area))} &nbsp;·&nbsp; avg '
-            f'{avg_txt}/10 &nbsp;·&nbsp; {len(groups[area])}</span>'
+            f'{avg_txt}/10 &nbsp;·&nbsp; Articles: {len(groups[area])}</span>'
         )
     parts.append(sec("Coverage snapshot"))
     parts.append('<p style="margin:0 0 3px">' + "".join(snap) + '</p>')
