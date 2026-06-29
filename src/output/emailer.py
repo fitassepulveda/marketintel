@@ -91,7 +91,7 @@ def _abbr_footnotes_html(blob: str) -> str:
 def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str],
                 greeting: str | None = None) -> str:
     def sec(title):
-        return (f'<h2 style="color:#1F3864;font-size:14px;margin:16px 0 6px;'
+        return (f'<h2 style="color:#1F3864;font-size:11px;margin:9px 0 3px;'
                 f'text-transform:uppercase;letter-spacing:.04em">{escape(title)}</h2>')
 
     stories = briefing.get("stories", [])
@@ -123,16 +123,16 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
 
     parts = [
         '<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#222;'
-        'font-size:14px;line-height:1.45">',
-        (f'<p style="font-size:14px;color:#222;margin:0 0 4px">Good morning {escape(greeting)},</p>'
+        'font-size:12.5px;line-height:1.28">',
+        (f'<p style="font-size:12.5px;color:#222;margin:0 0 2px">Good morning {escape(greeting)},</p>'
          if greeting else ''),
-        f'<h1 style="color:#1F3864;font-size:18px;margin:0 0 2px">Market Intelligence Briefing — '
+        f'<h1 style="color:#1F3864;font-size:15px;margin:0 0 1px">Market Intelligence Briefing — '
         f'{escape(date_str)}</h1>',
-        f'<p style="color:#666;font-size:11px;margin:0 0 8px">{escape(org_name)} · Highly '
+        f'<p style="color:#666;font-size:10px;margin:0 0 4px">{escape(org_name)} · Highly '
         f'Confidential &nbsp; {avg_html}</p>',
         sec("Top-Line Takeaways &amp; Recommended Actions"),
-        '<ol style="margin:0 0 4px;padding-left:20px">',
-        *[f'<li style="margin-bottom:4px">{_md_bold(t)}</li>' for t in merged],
+        '<ol style="margin:0 0 2px;padding-left:18px">',
+        *[f'<li style="margin-bottom:2px">{_md_bold(t)}</li>' for t in merged],
         "</ol>",
     ]
 
@@ -150,18 +150,19 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
             f'<span style="background:{tint};color:{accent};font-size:11px;font-weight:bold;'
             f'padding:1px 7px;border-radius:3px;white-space:nowrap">{escape(label)}</span>'
         )
+        fld = 'style="margin:1px 0;font-size:11.5px;line-height:1.25"'
         parts.append(
-            f'<div style="border-left:3px solid {accent};padding:5px 11px;margin:8px 0;'
+            f'<div style="border-left:3px solid {accent};padding:3px 9px;margin:5px 0;'
             f'background:#F7F9FC">'
-            f'<p style="margin:0 0 2px">{chip}'
-            f'<span style="color:#888;font-size:11px">&nbsp; {escape(s.get("source", ""))}</span>'
+            f'<p style="margin:0 0 1px">{chip}'
+            f'<span style="color:#888;font-size:10px">&nbsp; {escape(s.get("source", ""))}</span>'
             f'&nbsp; {score_badge}</p>'
-            f'<p style="margin:0 0 3px"><b><a href="{escape(s.get("url", "#"))}" '
+            f'<p style="margin:0 0 1px"><b><a href="{escape(s.get("url", "#"))}" '
             f'style="color:#1F3864;text-decoration:none">{escape(s.get("title", ""))}</a></b></p>'
-            f'<p style="margin:2px 0"><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
-            f'<p style="margin:2px 0"><b>Why it matters:</b> {escape(s.get("why_it_matters", ""))}</p>'
-            f'<p style="margin:2px 0"><b>Exposure:</b> {escape(s.get("exposure", ""))}</p>'
-            + (f'<p style="margin:2px 0"><b>What to watch:</b> {escape(s.get("watch_next", ""))}</p>'
+            f'<p {fld}><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
+            f'<p {fld}><b>Why it matters:</b> {escape(s.get("why_it_matters", ""))}</p>'
+            f'<p {fld}><b>Exposure:</b> {escape(s.get("exposure", ""))}</p>'
+            + (f'<p {fld}><b>What to watch:</b> {escape(s.get("watch_next", ""))}</p>'
                if s.get("watch_next") else "")
             + '</div>'
         )
