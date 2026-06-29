@@ -151,33 +151,34 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
     parts.append('<p style="margin:0 0 3px">' + "".join(snap) + '</p>')
 
     fld = 'style="margin:1px 0;font-size:11.5px;line-height:1.25"'
-    for area in ordered_areas:
+    parts.append(sec("Today's Top Stories"))
+    for s in sorted(stories, key=_score, reverse=True):
+        area = s.get("area", "")
         accent, tint = AREA_COLORS.get(area, DEFAULT_AREA_COLOR)
-        parts.append(
-            f'<h2 style="font-size:11px;margin:8px 0 2px;color:{accent};text-transform:uppercase;'
-            f'letter-spacing:.04em;border-left:3px solid {accent};padding-left:6px">'
-            f'{escape(AREA_LABELS.get(area, area))}</h2>'
+        score = _fmt_score(s.get("llm_score"))
+        score_badge = (
+            f'<span style="background:#EAF0F8;color:#1F3864;font-size:11px;font-weight:bold;'
+            f'padding:1px 7px;border-radius:10px;white-space:nowrap">Relevance {score}/10</span>'
+        ) if score else ""
+        chip = (
+            f'<span style="background:{tint};color:{accent};font-size:10px;font-weight:bold;'
+            f'padding:1px 6px;border-radius:3px;white-space:nowrap">'
+            f'{escape(AREA_LABELS.get(area, area))}</span>'
         )
-        for s in groups[area]:
-            score = _fmt_score(s.get("llm_score"))
-            score_badge = (
-                f'<span style="background:#EAF0F8;color:#1F3864;font-size:11px;font-weight:bold;'
-                f'padding:1px 7px;border-radius:10px;white-space:nowrap">Relevance {score}/10</span>'
-            ) if score else ""
-            next_steps = s.get("next_steps") or s.get("watch_next", "")
-            parts.append(
-                f'<div style="border-left:3px solid {accent};padding:3px 9px;margin:4px 0;'
-                f'background:#F7F9FC">'
-                f'<p style="margin:0 0 1px"><b><a href="{escape(s.get("url", "#"))}" '
-                f'style="color:#1F3864;text-decoration:none">{escape(s.get("title", ""))}</a></b>'
-                f'&nbsp; {score_badge}'
-                f'<span style="color:#888;font-size:10px">&nbsp; {escape(s.get("source", ""))}</span></p>'
-                f'<p {fld}><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
-                f'<p {fld}><b>Why it matters:</b> {escape(s.get("why_it_matters", ""))}</p>'
-                f'<p {fld}><b>Exposure:</b> {escape(s.get("exposure", ""))}</p>'
-                + (f'<p {fld}><b>Next steps:</b> {escape(next_steps)}</p>' if next_steps else "")
-                + '</div>'
-            )
+        next_steps = s.get("next_steps") or s.get("watch_next", "")
+        parts.append(
+            f'<div style="border-left:3px solid {accent};padding:3px 9px;margin:4px 0;'
+            f'background:#F7F9FC">'
+            f'<p style="margin:0 0 1px">{chip}&nbsp; {score_badge}'
+            f'<span style="color:#888;font-size:10px">&nbsp; {escape(s.get("source", ""))}</span></p>'
+            f'<p style="margin:0 0 1px"><b><a href="{escape(s.get("url", "#"))}" '
+            f'style="color:#1F3864;text-decoration:none">{escape(s.get("title", ""))}</a></b></p>'
+            f'<p {fld}><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
+            f'<p {fld}><b>Why it matters:</b> {escape(s.get("why_it_matters", ""))}</p>'
+            f'<p {fld}><b>Exposure:</b> {escape(s.get("exposure", ""))}</p>'
+            + (f'<p {fld}><b>Next steps:</b> {escape(next_steps)}</p>' if next_steps else "")
+            + '</div>'
+        )
 
     if failing:
         parts.append(
