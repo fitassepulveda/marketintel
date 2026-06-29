@@ -218,10 +218,20 @@ def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict]]
     return final, runners
 
 
+def _resolve_recipients(settings, spec: str) -> list[str]:
+    """Resolve --recipients: a named list from briefing.recipient_lists (e.g. 'test'),
+    or a comma-separated list of email addresses."""
+    lists = settings["briefing"].get("recipient_lists", {})
+    if spec in lists:
+        return list(lists[spec])
+    return [e.strip() for e in spec.split(",") if e.strip()]
+
+
 def _send_html(settings, subject: str, body_html: str, dry_run: bool,
-               run_date: str, label: str = "Digest") -> bool:
+               run_date: str, label: str = "Digest",
+               recipients_override: list[str] | None = None) -> bool:
     """Send an HTML email, respecting --dry-run and SMTP readiness. Returns True if sent."""
-    recipients = settings["briefing"].get("digest_recipients", [])
+    recipients = recipients_override or settings["briefing"].get("digest_recipients", [])
     smtp_ready = all(config.env(k, required=False) for k in
                      ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "EMAIL_FROM"))
     if dry_run:
@@ -281,6 +291,11 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="don't send email; save HTML locally")
     ap.add_argument("--no-yutori", action="store_true")
     ap.add_argument("--no-llm", action="store_true")
+    ap.add_argument("--recipients", default=None,
+                    help="Override delivery for this run: a named list from "
+                         "briefing.recipient_lists (e.g. 'test') OR comma-separated emails. "
+                         "Sends ONE shared briefing to exactly these addresses and SKIPS the "
+                         "per-profile send — use for test sends to a limited group.")
     args = ap.parse_args()
 
     cfg = config.load_all()
@@ -409,13 +424,21 @@ def main():
     (out_dir / f"{run_date}_digest.txt").write_text(digest, encoding="utf-8")
     (out_dir / f"{run_date}_digest.html").write_text(digest_html, encoding="utf-8")
 
-    # Delivery: if executive profiles are configured, send each person their own copy
-    # (exec-summary format + personal greeting). Otherwise fall back to the single shared
-    # digest to digest_recipients (legacy behavior).
-    sent = _send_personalized(settings, briefing, date_h, failing, args.dry_run, run_date, out_dir)
-    if sent is None:
-        sent = _send_html(settings, f'{settings["briefing"]["subject_prefix"]} — {date_h}',
-                          digest_html, args.dry_run, run_date, label="Digest")
+    # Delivery. --recipients forces a single TEST send (new briefing format) to exactly the
+    # given group, skipping the per-profile send — so test runs never hit production leadership.
+    # Otherwise: if executive profiles are configured, send each person their own copy;
+    # else fall back to the single shared digest to digest_recipients (legacy behavior).
+    if args.recipients:
+        test_to = _resolve_recipients(settings, args.recipients)
+        log.info("TEST send: delivering only to %s", ", ".join(test_to) or "(none resolved)")
+        sent = _send_html(settings, f'[TEST] {settings["briefing"]["subject_prefix"]} — {date_h}',
+                          html, args.dry_run, run_date, label="Test briefing",
+                          recipients_override=test_to)
+    else:
+        sent = _send_personalized(settings, briefing, date_h, failing, args.dry_run, run_date, out_dir)
+        if sent is None:
+            sent = _send_html(settings, f'{settings["briefing"]["subject_prefix"]} — {date_h}',
+                              digest_html, args.dry_run, run_date, label="Digest")
 
     # Only consume dedup state when the briefing actually went out — a dry run or a
     # failed/skipped send must not mark stories as already-briefed.

@@ -428,8 +428,9 @@ briefing:
       - "psharma@miami.edu"
       - "cjvonherrath@miami.edu"
       - "fxs1141@miami.edu"
-    test:                               # test sends — just you
+    test:                               # test sends — the S&T testing group (not leadership)
       - "wef28@miami.edu"
+      - "fxs1141@miami.edu"
   # ACTIVE list the briefing actually emails. Currently: PRODUCTION (full leadership list).
   digest_recipients:
     - "wef28@miami.edu"

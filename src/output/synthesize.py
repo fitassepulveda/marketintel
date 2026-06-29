@@ -11,7 +11,7 @@ SYSTEM = """You write a daily market intelligence briefing for healthcare system
 Use ONLY the provided items — do not invent facts. Follow this structure exactly and respond
 with JSON:
 {
-  "takeaways": ["3-5 most important developments, one sentence each"],
+  "takeaways": ["3-5 punchy, MBB-consultant-style bullets that FUSE the key development with its 'so what' / the recommended action — each ties an insight to what leadership should consider doing, so takeaways and actions read as one thought. Sharp, concrete, one sentence each. Use **double asterisks** to bold the 2-4 highest-impact words or phrases in each bullet (strategic bolding)."],
   "key_question_answers": {"<area>": "1-3 sentence answer to that area's key question based on today's items, or 'No significant developments today.'"},
   "stories": [
     {"title": "...", "area": "...", "source": "...", "url": "...",
@@ -22,7 +22,7 @@ with JSON:
      "coverage_label": "a short descriptive label for the source link, e.g. 'STAT reporting on pharma job shifts'"}
   ],
   "watch": ["developments to watch in coming days/weeks/months"],
-  "actions": ["recommended actions or considerations"]
+  "actions": ["recommended actions — but PREFER to fold each action directly into the matching takeaway above so the two read as one; use this list only for any action not already captured there. May be empty."]
 }
 Produce ONE story object for EACH item provided, preserving that item's exact url.
 Do NOT drop, omit, or merge items — duplicates have already been removed upstream.

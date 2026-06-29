@@ -7,6 +7,8 @@ from email.mime.text import MIMEText
 from email.utils import parsedate_to_datetime
 from html import escape
 
+import re
+
 AREA_LABELS = {
     "national_policy": "National Healthcare Policy & Industry",
     "south_florida_competitive": "South Florida Competitive Intel",
@@ -16,53 +18,170 @@ AREA_LABELS = {
     "reputation_media": "Reputation & Media Monitoring",
 }
 
+# Per-area color coding: (accent — used for the left bar + chip text, chip background tint).
+AREA_COLORS = {
+    "national_policy":           ("#1F3864", "#EAF1FB"),
+    "south_florida_competitive": ("#C0392B", "#FDECEA"),
+    "payer_insurance":           ("#6B3FA0", "#F0EAFB"),
+    "innovation_ai":             ("#0B7C77", "#E4F7F5"),
+    "public_health_risk":        ("#9A6700", "#FBF1E0"),
+    "reputation_media":          ("#475063", "#EEF1F5"),
+}
+DEFAULT_AREA_COLOR = ("#1F3864", "#EAF0F8")
+
+# Abbreviations expanded as footnotes at the bottom of the email (only those that appear).
+ABBREVIATIONS = {
+    "UHealth": "University of Miami Health System",
+    "UM": "University of Miami",
+    "NIH": "National Institutes of Health",
+    "CMS": "Centers for Medicare & Medicaid Services",
+    "HHS": "U.S. Department of Health and Human Services",
+    "FDA": "U.S. Food and Drug Administration",
+    "CDC": "Centers for Disease Control and Prevention",
+    "WHO": "World Health Organization",
+    "340B": "the federal 340B Drug Pricing Program",
+    "GME": "Graduate Medical Education",
+    "PBM": "Pharmacy Benefit Manager",
+    "AI": "Artificial Intelligence",
+    "M&A": "Mergers & Acquisitions",
+    "S&T": "Strategy & Transformation",
+    "FIU": "Florida International University",
+    "HCA": "Hospital Corporation of America",
+    "ER": "Emergency Room",
+    "EKG": "Electrocardiogram",
+    "NCI": "National Cancer Institute",
+    "ACA": "Affordable Care Act",
+    "DRC": "Democratic Republic of the Congo",
+    "COO": "Chief Operating Officer",
+    "CMIO": "Chief Medical Information Officer",
+    "CFO": "Chief Financial Officer",
+    "CEO": "Chief Executive Officer",
+    "DSH": "Disproportionate Share Hospital",
+    "VA": "U.S. Department of Veterans Affairs",
+    "STEMI": "ST-Elevation Myocardial Infarction",
+    "RFI": "Request for Information",
+    "GLP-1": "Glucagon-Like Peptide-1 (drug class)",
+}
+
+
+def _md_bold(text: str) -> str:
+    """Escape HTML, then convert **strategic bolding** markers to <b> tags."""
+    out = escape(str(text or ""))
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", out)
+
+
+def _abbr_footnotes_html(blob: str) -> str:
+    """Footnote block defining every known abbreviation that appears in `blob`."""
+    found = []
+    for ab, full in ABBREVIATIONS.items():
+        if re.search(r"(?<![A-Za-z0-9])" + re.escape(ab) + r"(?![A-Za-z0-9])", blob):
+            found.append((ab, full))
+    if not found:
+        return ""
+    found.sort(key=lambda x: x[0].lower())
+    items = " &nbsp;·&nbsp; ".join(
+        f"<b>{escape(ab)}</b> {escape(full)}" for ab, full in found)
+    return (
+        '<p style="color:#888;font-size:11px;line-height:1.5;margin:14px 0 0;'
+        'border-top:1px solid #E6EBF2;padding-top:8px">'
+        f'<b style="color:#1F3864">Abbreviations</b> &nbsp; {items}</p>'
+    )
+
 
 def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str],
                 greeting: str | None = None) -> str:
     def sec(title):
-        return f'<h2 style="color:#1F3864;font-size:16px;margin:24px 0 8px">{escape(title)}</h2>'
+        return (f'<h2 style="color:#1F3864;font-size:14px;margin:16px 0 6px;'
+                f'text-transform:uppercase;letter-spacing:.04em">{escape(title)}</h2>')
+
+    stories = briefing.get("stories", [])
+
+    # Overall relevance score — average of the selected stories' LLM relevance (0-10),
+    # a quick read on how strongly prioritized the whole report is.
+    nums = []
+    for s in stories:
+        try:
+            nums.append(float(s.get("llm_score")))
+        except (TypeError, ValueError):
+            pass
+    avg = sum(nums) / len(nums) if nums else None
+    avg_html = (
+        f'<span style="background:#1F3864;color:#fff;font-size:12px;font-weight:bold;'
+        f'padding:2px 9px;border-radius:10px;white-space:nowrap">Report relevance '
+        f'{avg:.1f}/10</span> <span style="color:#888;font-size:11px">avg of {len(nums)} '
+        f'stories</span>'
+    ) if avg is not None else ""
+
+    # Merged "Top-Line Takeaways & Recommended Actions" — punchy, action-tying, with
+    # strategic bolding (** markers from synthesis). Actions are folded in and de-duped.
+    merged, seen = [], set()
+    for t in list(briefing.get("takeaways", [])) + list(briefing.get("actions", [])):
+        key = re.sub(r"[^a-z0-9]", "", str(t).lower())
+        if key and key not in seen:
+            seen.add(key)
+            merged.append(t)
 
     parts = [
-        '<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#222">',
-        (f'<p style="font-size:15px;color:#222;margin:0 0 6px">Good morning {escape(greeting)},</p>'
+        '<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#222;'
+        'font-size:14px;line-height:1.45">',
+        (f'<p style="font-size:14px;color:#222;margin:0 0 4px">Good morning {escape(greeting)},</p>'
          if greeting else ''),
-        f'<h1 style="color:#1F3864;font-size:20px">Market Intelligence Briefing — {escape(date_str)}</h1>',
-        f'<p style="color:#666;font-size:12px;margin-top:-8px">{escape(org_name)} · Highly Confidential</p>',
-        sec("Top-Line Takeaways"), "<ol>",
-        *[f'<li style="margin-bottom:6px">{escape(t)}</li>' for t in briefing.get("takeaways", [])],
+        f'<h1 style="color:#1F3864;font-size:18px;margin:0 0 2px">Market Intelligence Briefing — '
+        f'{escape(date_str)}</h1>',
+        f'<p style="color:#666;font-size:11px;margin:0 0 8px">{escape(org_name)} · Highly '
+        f'Confidential &nbsp; {avg_html}</p>',
+        sec("Top-Line Takeaways &amp; Recommended Actions"),
+        '<ol style="margin:0 0 4px;padding-left:20px">',
+        *[f'<li style="margin-bottom:4px">{_md_bold(t)}</li>' for t in merged],
         "</ol>",
     ]
 
     parts.append(sec("Today's Top Stories"))
-    for s in briefing.get("stories", []):
-        label = AREA_LABELS.get(s.get("area", ""), s.get("area", ""))
+    for s in stories:
+        area = s.get("area", "")
+        label = AREA_LABELS.get(area, area)
+        accent, tint = AREA_COLORS.get(area, DEFAULT_AREA_COLOR)
         score = _fmt_score(s.get("llm_score"))
         score_badge = (
             f'<span style="background:#EAF0F8;color:#1F3864;font-size:11px;font-weight:bold;'
             f'padding:1px 7px;border-radius:10px;white-space:nowrap">Relevance {score}/10</span>'
         ) if score else ""
+        chip = (
+            f'<span style="background:{tint};color:{accent};font-size:11px;font-weight:bold;'
+            f'padding:1px 7px;border-radius:3px;white-space:nowrap">{escape(label)}</span>'
+        )
         parts.append(
-            '<div style="border-left:3px solid #1F3864;padding:6px 12px;margin:10px 0;background:#F7F9FC">'
-            f'<p style="margin:0"><b><a href="{escape(s.get("url", "#"))}" style="color:#1F3864">'
-            f'{escape(s.get("title", ""))}</a></b> {score_badge}<br>'
-            f'<span style="color:#888;font-size:12px">{escape(label)} · {escape(s.get("source", ""))}</span></p>'
-            f'<p style="margin:6px 0 0"><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
-            f'<p style="margin:4px 0 0"><b>Why it matters:</b> {escape(s.get("why_it_matters", ""))}</p>'
-            f'<p style="margin:4px 0 0"><b>Exposure:</b> {escape(s.get("exposure", ""))}</p></div>'
+            f'<div style="border-left:3px solid {accent};padding:5px 11px;margin:8px 0;'
+            f'background:#F7F9FC">'
+            f'<p style="margin:0 0 2px">{chip}'
+            f'<span style="color:#888;font-size:11px">&nbsp; {escape(s.get("source", ""))}</span>'
+            f'&nbsp; {score_badge}</p>'
+            f'<p style="margin:0 0 3px"><b><a href="{escape(s.get("url", "#"))}" '
+            f'style="color:#1F3864;text-decoration:none">{escape(s.get("title", ""))}</a></b></p>'
+            f'<p style="margin:2px 0"><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
+            f'<p style="margin:2px 0"><b>Why it matters:</b> {escape(s.get("why_it_matters", ""))}</p>'
+            f'<p style="margin:2px 0"><b>Exposure:</b> {escape(s.get("exposure", ""))}</p>'
+            + (f'<p style="margin:2px 0"><b>What to watch:</b> {escape(s.get("watch_next", ""))}</p>'
+               if s.get("watch_next") else "")
+            + '</div>'
         )
 
-    if briefing.get("watch"):
-        parts += [sec("Developments to Watch"), "<ul>",
-                  *[f"<li>{escape(w)}</li>" for w in briefing["watch"]], "</ul>"]
-    if briefing.get("actions"):
-        parts += [sec("Recommended Actions & Considerations"), "<ul>",
-                  *[f"<li>{escape(a)}</li>" for a in briefing["actions"]], "</ul>"]
     if failing:
         parts.append(
-            f'<p style="color:#A33;font-size:11px">Source health alert — no items for 2+ days: '
-            f'{escape(", ".join(failing))}</p>'
+            f'<p style="color:#A33;font-size:11px;margin:8px 0 0">Source health alert — no items '
+            f'for 2+ days: {escape(", ".join(failing))}</p>'
         )
-    parts.append('<p style="color:#999;font-size:11px">Generated automatically by the Market Intelligence Platform.</p></div>')
+
+    # Abbreviation footnotes — scan everything visible in the email body.
+    blob = " ".join(
+        [str(t) for t in merged]
+        + [f'{s.get("title","")} {s.get("what_happened","")} {s.get("why_it_matters","")} '
+           f'{s.get("exposure","")} {s.get("watch_next","")} {AREA_LABELS.get(s.get("area",""), "")}'
+           for s in stories]
+    )
+    parts.append(_abbr_footnotes_html(blob))
+    parts.append('<p style="color:#bbb;font-size:10px;margin:8px 0 0">Generated automatically by '
+                 'the Market Intelligence Platform.</p></div>')
     return "".join(parts)
 
 
