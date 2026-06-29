@@ -18,7 +18,7 @@ with JSON:
      "what_happened": "1-2 sentences",
      "why_it_matters": "REQUIRED, never blank: 1-2 sentences on the strategic significance to the organization (refer to it by its short name) — why leadership should care",
      "exposure": "REQUIRED: the specific institutional risk OR opportunity this creates, in one sentence (distinct from why_it_matters)",
-     "watch_next": "REQUIRED: what to watch next, AND a judgment-based time horizon for when it is likely to matter — pick the horizon that actually fits THIS story (e.g. 'in the next few days', 'over the next month', 'next quarter', 'over the next year'); some developments resolve fast, others play out slowly. One sentence.",
+     "watch_next": "REQUIRED — the NEXT STEP for leadership (rendered as 'Next steps'). This may simply be something to WATCH (include a judgment-based time horizon that fits THIS story — e.g. 'in the next few days', 'over the next month', 'next quarter') OR a more concrete recommended ACTION when the story warrants one. Pick whichever genuinely fits; do not force an action where watching is the right call. One sentence.",
      "coverage_label": "a short descriptive label for the source link, e.g. 'STAT reporting on pharma job shifts'"}
   ],
   "watch": ["developments to watch in coming days/weeks/months"],

@@ -112,14 +112,19 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
         f'stories</span>'
     ) if avg is not None else ""
 
-    # Merged "Top-Line Takeaways & Recommended Actions" — punchy, action-tying, with
-    # strategic bolding (** markers from synthesis). Actions are folded in and de-duped.
-    merged, seen = [], set()
-    for t in list(briefing.get("takeaways", [])) + list(briefing.get("actions", [])):
-        key = re.sub(r"[^a-z0-9]", "", str(t).lower())
-        if key and key not in seen:
-            seen.add(key)
-            merged.append(t)
+    # Group stories by intelligence area, and order the area sections by the day's priority
+    # (the top story score in each area, high -> low). Within an area, sort by score.
+    def _score(s):
+        try:
+            return float(s.get("llm_score"))
+        except (TypeError, ValueError):
+            return -1.0
+    groups: dict[str, list] = {}
+    for s in stories:
+        groups.setdefault(s.get("area", ""), []).append(s)
+    for g in groups.values():
+        g.sort(key=_score, reverse=True)
+    ordered_areas = sorted(groups, key=lambda a: max(_score(s) for s in groups[a]), reverse=True)
 
     parts = [
         '<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#222;'
@@ -130,42 +135,49 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
         f'{escape(date_str)}</h1>',
         f'<p style="color:#666;font-size:10px;margin:0 0 4px">{escape(org_name)} · Highly '
         f'Confidential &nbsp; {avg_html}</p>',
-        sec("Top-Line Takeaways &amp; Recommended Actions"),
-        '<ol style="margin:0 0 2px;padding-left:18px">',
-        *[f'<li style="margin-bottom:2px">{_md_bold(t)}</li>' for t in merged],
-        "</ol>",
     ]
 
-    parts.append(sec("Today's Top Stories"))
-    for s in stories:
-        area = s.get("area", "")
-        label = AREA_LABELS.get(area, area)
+    # Coverage snapshot — a color-coded index of the day's areas, highest priority first,
+    # each with its story count. Replaces the old takeaways list.
+    snap = []
+    for area in ordered_areas:
         accent, tint = AREA_COLORS.get(area, DEFAULT_AREA_COLOR)
-        score = _fmt_score(s.get("llm_score"))
-        score_badge = (
-            f'<span style="background:#EAF0F8;color:#1F3864;font-size:11px;font-weight:bold;'
-            f'padding:1px 7px;border-radius:10px;white-space:nowrap">Relevance {score}/10</span>'
-        ) if score else ""
-        chip = (
+        snap.append(
             f'<span style="background:{tint};color:{accent};font-size:11px;font-weight:bold;'
-            f'padding:1px 7px;border-radius:3px;white-space:nowrap">{escape(label)}</span>'
+            f'padding:1px 7px;border-radius:3px;white-space:nowrap;display:inline-block;'
+            f'margin:0 4px 3px 0">{escape(AREA_LABELS.get(area, area))} &nbsp;{len(groups[area])}</span>'
         )
-        fld = 'style="margin:1px 0;font-size:11.5px;line-height:1.25"'
+    parts.append(sec("Coverage snapshot"))
+    parts.append('<p style="margin:0 0 3px">' + "".join(snap) + '</p>')
+
+    fld = 'style="margin:1px 0;font-size:11.5px;line-height:1.25"'
+    for area in ordered_areas:
+        accent, tint = AREA_COLORS.get(area, DEFAULT_AREA_COLOR)
         parts.append(
-            f'<div style="border-left:3px solid {accent};padding:3px 9px;margin:5px 0;'
-            f'background:#F7F9FC">'
-            f'<p style="margin:0 0 1px">{chip}'
-            f'<span style="color:#888;font-size:10px">&nbsp; {escape(s.get("source", ""))}</span>'
-            f'&nbsp; {score_badge}</p>'
-            f'<p style="margin:0 0 1px"><b><a href="{escape(s.get("url", "#"))}" '
-            f'style="color:#1F3864;text-decoration:none">{escape(s.get("title", ""))}</a></b></p>'
-            f'<p {fld}><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
-            f'<p {fld}><b>Why it matters:</b> {escape(s.get("why_it_matters", ""))}</p>'
-            f'<p {fld}><b>Exposure:</b> {escape(s.get("exposure", ""))}</p>'
-            + (f'<p {fld}><b>What to watch:</b> {escape(s.get("watch_next", ""))}</p>'
-               if s.get("watch_next") else "")
-            + '</div>'
+            f'<h2 style="font-size:11px;margin:8px 0 2px;color:{accent};text-transform:uppercase;'
+            f'letter-spacing:.04em;border-left:3px solid {accent};padding-left:6px">'
+            f'{escape(AREA_LABELS.get(area, area))}</h2>'
         )
+        for s in groups[area]:
+            score = _fmt_score(s.get("llm_score"))
+            score_badge = (
+                f'<span style="background:#EAF0F8;color:#1F3864;font-size:11px;font-weight:bold;'
+                f'padding:1px 7px;border-radius:10px;white-space:nowrap">Relevance {score}/10</span>'
+            ) if score else ""
+            next_steps = s.get("next_steps") or s.get("watch_next", "")
+            parts.append(
+                f'<div style="border-left:3px solid {accent};padding:3px 9px;margin:4px 0;'
+                f'background:#F7F9FC">'
+                f'<p style="margin:0 0 1px"><b><a href="{escape(s.get("url", "#"))}" '
+                f'style="color:#1F3864;text-decoration:none">{escape(s.get("title", ""))}</a></b>'
+                f'&nbsp; {score_badge}'
+                f'<span style="color:#888;font-size:10px">&nbsp; {escape(s.get("source", ""))}</span></p>'
+                f'<p {fld}><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
+                f'<p {fld}><b>Why it matters:</b> {escape(s.get("why_it_matters", ""))}</p>'
+                f'<p {fld}><b>Exposure:</b> {escape(s.get("exposure", ""))}</p>'
+                + (f'<p {fld}><b>Next steps:</b> {escape(next_steps)}</p>' if next_steps else "")
+                + '</div>'
+            )
 
     if failing:
         parts.append(
@@ -175,10 +187,10 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
 
     # Abbreviation footnotes — scan everything visible in the email body.
     blob = " ".join(
-        [str(t) for t in merged]
-        + [f'{s.get("title","")} {s.get("what_happened","")} {s.get("why_it_matters","")} '
-           f'{s.get("exposure","")} {s.get("watch_next","")} {AREA_LABELS.get(s.get("area",""), "")}'
-           for s in stories]
+        f'{s.get("title","")} {s.get("what_happened","")} {s.get("why_it_matters","")} '
+        f'{s.get("exposure","")} {s.get("next_steps","") or s.get("watch_next","")} '
+        f'{AREA_LABELS.get(s.get("area",""), "")}'
+        for s in stories
     )
     parts.append(_abbr_footnotes_html(blob))
     parts.append('<p style="color:#bbb;font-size:10px;margin:8px 0 0">Generated automatically by '
