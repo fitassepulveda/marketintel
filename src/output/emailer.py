@@ -31,19 +31,20 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
         sec("Top-Line Takeaways"), "<ol>",
         *[f'<li style="margin-bottom:6px">{escape(t)}</li>' for t in briefing.get("takeaways", [])],
         "</ol>",
-        sec("Key Question Answers"),
     ]
-    for area, answer in briefing.get("key_question_answers", {}).items():
-        label = AREA_LABELS.get(area, area)
-        parts.append(f'<p style="margin:4px 0"><b>{escape(label)}:</b> {escape(answer)}</p>')
 
     parts.append(sec("Today's Top Stories"))
     for s in briefing.get("stories", []):
         label = AREA_LABELS.get(s.get("area", ""), s.get("area", ""))
+        score = _fmt_score(s.get("llm_score"))
+        score_badge = (
+            f'<span style="background:#EAF0F8;color:#1F3864;font-size:11px;font-weight:bold;'
+            f'padding:1px 7px;border-radius:10px;white-space:nowrap">Relevance {score}/10</span>'
+        ) if score else ""
         parts.append(
             '<div style="border-left:3px solid #1F3864;padding:6px 12px;margin:10px 0;background:#F7F9FC">'
             f'<p style="margin:0"><b><a href="{escape(s.get("url", "#"))}" style="color:#1F3864">'
-            f'{escape(s.get("title", ""))}</a></b><br>'
+            f'{escape(s.get("title", ""))}</a></b> {score_badge}<br>'
             f'<span style="color:#888;font-size:12px">{escape(label)} · {escape(s.get("source", ""))}</span></p>'
             f'<p style="margin:6px 0 0"><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
             f'<p style="margin:4px 0 0"><b>Why it matters:</b> {escape(s.get("why_it_matters", ""))}</p>'

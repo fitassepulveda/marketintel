@@ -372,6 +372,15 @@ def main():
             "coverage_label": f'{a["source"]} coverage',
         })
 
+    # Attach each story's LLM relevance score (0-10) from the ranked DB rows so the
+    # briefing renderer can show a score next to every article. Matched by URL, then title.
+    _score_by_url = {emailer._norm_url(a["url"]): a.get("llm_score") for a in top if a.get("url")}
+    _score_by_title = {str(a["title"]).strip().lower(): a.get("llm_score") for a in top if a.get("title")}
+    for s in briefing["stories"]:
+        if s.get("llm_score") is None:
+            s["llm_score"] = (_score_by_url.get(emailer._norm_url(s.get("url", "")))
+                              or _score_by_title.get(str(s.get("title", "")).strip().lower()))
+
     # Historical awareness: add an "Additional context" note to any story that has
     # related prior coverage in our database (Gemini-judged). Off unless
     # additional_context.enabled is true in settings.yaml; fail-safe, populates nothing
