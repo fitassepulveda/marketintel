@@ -4,7 +4,37 @@ Every prioritization change made to the Market Intelligence briefing, with what 
 where it lives. Most scoring behavior is in `config/settings.yaml → briefing.relevance_guidance`
 (no code change needed to tune); selection mechanics are in `run_briefing.py` + `config/`.
 
-_Last updated: 2026-06-25._
+_Last updated: 2026-06-29._
+
+---
+
+## 0. 2026-06-29 calibration (strategy-team review of the 6/29 run)
+
+Driven by feedback on `feedback_2026-06-29.xlsx`. All in `briefing.relevance_guidance`.
+
+- **NEW — never surface partisan politics.** Stories hooked on partisan politics or a named
+  political figure (a court blocking a President's plan, elections, partisan fights) score 1-2
+  and are excluded. Carve-out: concrete funding/reimbursement/regulatory CHANGES that hit UHealth
+  (NIH, Medicare/Medicaid, 340B, GME) are still scored on substance — the rule targets political
+  framing, not policy. (Ex: "Judge blocks Trump grad-loan plan" → 2.)
+- **Funding rounds lowered 3-4 (was ~6).** A raise alone is not actionable; the trigger is a
+  product launch or a hospital partnership. (Assort Health $120M → 3-4; both Cadence examples
+  realigned 6/5 → 4.)
+- **Flagship-competitor clinical advances bumped to 6-7.** A pure clinical/science finding is
+  normally ~2, but a TOP in-region competitor advancing in a UHealth flagship line — especially
+  oncology, the most profitable line — is competitive intel. (Cleveland Clinic glioblastoma → 6-7.)
+- **Foreign disease outbreaks → 5 (slow-day only).** No US/Florida/UHealth impact = not a
+  typical-day inclusion, distinct from a genuine global pandemic. (Ebola/DRC → 5.)
+- **Reinforced low/exclude:** patient-care human-interest UHealth can't act on (gun-victim
+  discharge → 2-3), drug-pricing/Medicare-prescription (→ 2-3), ESG/AI commentary (→ 3), and
+  generic AI thought-leadership (→ 2-3).
+
+## Briefing format (2026-06-29)
+
+- `src/output/emailer.py` (`render_html`): removed the **Key Question Answers** section; added a
+  **relevance-score badge** ("Relevance N/10") next to each story title. Top-Line Takeaways kept.
+- `run_briefing.py`: attaches each story's LLM relevance score (matched from ranked DB rows by
+  URL then title) so the renderer can display it.
 
 ---
 

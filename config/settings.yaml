@@ -87,9 +87,19 @@ briefing:
     C-suite. "Important for leadership to be aware of" is NOT enough. Patient-care / clinical-ops
     AI problems (e.g. an insurer's AI causing care delays), general industry commentary, and
     out-of-state policy a strategy team cannot react to are AWARENESS, not action — cap at ~6.
-    A startup FUNDING ROUND is not actionable on its own (cap ~6); it becomes actionable only
-    once the product is RELEASED or a HOSPITAL PARTNERS with the company — that is the trigger
-    worth surfacing high.
+    A startup FUNDING ROUND is not actionable on its own — score it 3-4 (drop), NOT mid: a raise
+    is just money, with nothing for UHealth to do. It becomes worth surfacing only once the
+    product is RELEASED or a HOSPITAL PARTNERS with the company — that is the trigger worth
+    surfacing high.
+
+    NEVER SURFACE PARTISAN POLITICS (added 2026-06-29). Score 1-2 and exclude anything whose hook
+    is partisan politics or a named political figure / administration: a court blocking or
+    upholding a President's plan, an election, a partisan fight, a politician's statement. The
+    STRATEGY team cannot act on the politics. IMPORTANT CARVE-OUT: this targets the political
+    FRAMING, not policy substance — a concrete funding, reimbursement, or regulatory CHANGE that
+    hits UHealth (NIH indirect-cost caps, Medicare/Medicaid rates, 340B, GME) is still scored on
+    its direct UHealth impact via the gates, even though such policy is "political." The test:
+    is the story ABOUT the political fight, or about a concrete change UHealth must respond to?
 
     GATE 3 — JUDGE AGAINST UHEALTH'S EXISTING POSITION. Relevance is a real GAP, THREAT, or
     OPPORTUNITY given what UHealth already IS — not a topical keyword match. UHealth is already
@@ -191,7 +201,31 @@ briefing:
     (e.g. a global pandemic agreement, a region-wide health emergency) may score high even if
     "general," because leadership must be aware of it.
 
-    DAILY-REVIEW CALIBRATION (real strategy-team notes, 2026-06-25) — newest; apply this judgment:
+    DAILY-REVIEW CALIBRATION (real strategy-team notes, 2026-06-29) — newest; apply this judgment:
+    - "Sword Health contracted to provide AI-supported physical therapy" -> 8: the scale and the
+      precedent it sets for healthcare institutions make this adoptable/precedent-setting AI.
+    - "HHS details takeaways from its sweeping AI request for information" -> 7: signals incoming
+      AI regulation UHealth must track as it moves toward implementation.
+    - "Testosterone may offer anti-tumor activity in glioblastoma (Cleveland Clinic)" -> 6-7: a
+      pure clinical/scientific finding would normally be ~2, but this is a TOP in-region competitor
+      (Cleveland Clinic) advancing in ONCOLOGY — UHealth's most profitable flagship line — so it is
+      competitive intel in a flagship line, not just a science story.
+    - "Florida hospitals act fast to discharge gun victims" -> 2-3: patient-care / human-interest;
+      UHealth cannot act on it — do NOT include (it was wrongly briefed at 7 on a quiet day).
+    - "Assort Health raises $120M" -> 3-4: a funding round, nothing for UHealth to act on; drop.
+    - "CDC transcript: update on the Ebola outbreak in the DRC" -> 5: a foreign disease outbreak
+      with no US/Florida/UHealth impact is slow-day awareness only — NOT a typical-day inclusion
+      (distinct from a genuine global pandemic, which the public-health exception still covers).
+    - "Judge blocks Trump plan limiting graduate student loans" -> 2: politically-framed — never
+      surface partisan-politics stories (see the PARTISAN POLITICS rule above).
+    - "AI companies should release environmental impact / commit to clean energy" -> 3: ESG / AI
+      commentary, not relevant or actionable for a care provider.
+    - "New proposal could mean big savings on Medicare prescriptions" -> 2-3: drug-pricing /
+      Medicare prescription — pharmacy/drug-pricing is NOT a UHealth priority; no direct relevance.
+    - "A more connected approach for AI in healthcare" -> 2-3: generic AI thought-leadership, too
+      broad, no direct implication for UHealth — not actionable.
+
+    DAILY-REVIEW CALIBRATION (real strategy-team notes, 2026-06-25) — apply this judgment:
     - "School Board approves property sale to Broward Health" -> 10: SF competitor land/capacity
       acquisition for expansion — the exact must-know story; rank first.
     - "Jupiter Medical Center — Avenir campus breaks ground" -> 9-10: in-region, large hospital
@@ -217,7 +251,7 @@ briefing:
     - "Medicare's AI push snarls patients and doctors in errors and delays" -> 6: patient-care /
       clinical-ops AI awareness — fine for C-suite to know, but NOT actionable AI intelligence for
       a strategy team. Slow-day at most; should NOT be a constant high scorer.
-    - "Cadence raises $100M to automate chronic-disease care" -> 6: a funding round is not
+    - "Cadence raises $100M to automate chronic-disease care" -> 4: a funding round is not
       actionable — we care when the product ships or a hospital partners with them, not the raise.
     - "States surge ahead on healthcare AI regulation" -> 7: AI regulation UHealth must track
       before implementing AI — relevant but general.
@@ -244,8 +278,8 @@ briefing:
       pharmacy-workforce — a current UHealth project, surface these.
     - "OpenEvidence will add FDA-cleared AI to detect heart conditions" -> 8: FDA-cleared = UHealth
       could actually adopt it.
-    - "Cadence raises $100M to automate chronic-disease management" -> 5: a funding round, no
-      regulatory/adoptable movement — slow-day at best.
+    - "Cadence raises $100M to automate chronic-disease management" -> 4: a funding round, no
+      regulatory/adoptable movement — not actionable; drop.
     - "States surge ahead on healthcare AI regulation" -> 7: AI governance UHealth must navigate as
       it builds AI pathways (relevant even though general).
     - "CDC nominee prepares to depart UnitedHealth" -> 9: it's UnitedHealth (current-watch).
