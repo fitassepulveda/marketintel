@@ -252,7 +252,8 @@ def _send_html(settings, subject: str, body_html: str, dry_run: bool,
     return True
 
 
-def _send_personalized(settings, briefing, date_h, failing, dry_run, run_date, out_dir):
+def _send_personalized(settings, briefing, date_h, failing, dry_run, run_date, out_dir,
+                       runners=None):
     """Deliver the exec-summary report to each ACTIVE profile with a personal greeting.
 
     Returns None if no profiles are configured (caller falls back to the shared digest),
@@ -270,7 +271,8 @@ def _send_personalized(settings, briefing, date_h, failing, dry_run, run_date, o
     sent_any = False
     for p in profs:
         greeting = p.get("display_name") or p.get("name", "")
-        html = emailer.render_html(briefing, date_h, org_name, failing, greeting=greeting)
+        html = emailer.render_html(briefing, date_h, org_name, failing, greeting=greeting,
+                                   runners=runners)
         tag = (p.get("name", "profile").split() or ["profile"])[0].lower()
         (out_dir / f"{run_date}_{tag}.html").write_text(html, encoding="utf-8")
         if dry_run or not smtp_ready or not p.get("email"):
@@ -408,7 +410,7 @@ def main():
             log.warning("additional-context step skipped (%s)", exc)
 
     failing = store.failing_sources(con)
-    html = emailer.render_html(briefing, date_h, settings["org"]["name"], failing)
+    html = emailer.render_html(briefing, date_h, settings["org"]["name"], failing, runners=runners)
 
     # Email digest for the top N stories (HTML, with larger titles). Captured/Published
     # dates are matched from the DB rows (by url, then title). Plain text saved too.
@@ -435,7 +437,8 @@ def main():
                           html, args.dry_run, run_date, label="Test briefing",
                           recipients_override=test_to)
     else:
-        sent = _send_personalized(settings, briefing, date_h, failing, args.dry_run, run_date, out_dir)
+        sent = _send_personalized(settings, briefing, date_h, failing, args.dry_run, run_date,
+                                  out_dir, runners=runners)
         if sent is None:
             sent = _send_html(settings, f'{settings["briefing"]["subject_prefix"]} — {date_h}',
                               digest_html, args.dry_run, run_date, label="Digest")

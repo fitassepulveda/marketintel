@@ -89,7 +89,7 @@ def _abbr_footnotes_html(blob: str) -> str:
 
 
 def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str],
-                greeting: str | None = None) -> str:
+                greeting: str | None = None, runners: list[dict] | None = None) -> str:
     def sec(title):
         return (f'<h2 style="color:#1F3864;font-size:11px;margin:9px 0 3px;'
                 f'text-transform:uppercase;letter-spacing:.04em">{escape(title)}</h2>')
@@ -189,6 +189,26 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
                if next_steps else "")
             + '</div>'
         )
+
+    # Also considered — the next stories that just missed the selection cut, for comparison.
+    if runners:
+        parts.append(sec("Also considered — just missed the cut"))
+        for a in runners:
+            r_area = a.get("area", "")
+            r_accent, r_tint = AREA_COLORS.get(r_area, DEFAULT_AREA_COLOR)
+            sc = _fmt_score(a.get("llm_score"))
+            sc_txt = (f'<span style="color:#888;font-size:10px">&nbsp;·&nbsp; {sc}/10</span>'
+                      if sc else "")
+            r_chip = (
+                f'<span style="background:{r_tint};color:{r_accent};font-size:9px;font-weight:bold;'
+                f'padding:0 5px;border-radius:3px;white-space:nowrap">'
+                f'{escape(AREA_LABELS.get(r_area, r_area))}</span>'
+            )
+            parts.append(
+                f'<p style="margin:1px 0;font-size:11px"><a href="{escape(a.get("url", "#"))}" '
+                f'style="color:#1F3864;text-decoration:none">{escape(a.get("title", ""))}</a> '
+                f'&nbsp;{r_chip}{sc_txt}</p>'
+            )
 
     if failing:
         parts.append(
