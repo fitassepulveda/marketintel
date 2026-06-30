@@ -218,6 +218,44 @@ def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict]]
     return final, runners
 
 
+def _flag_broken_links(stories, timeout: int = 5, max_workers: int = 8) -> None:
+    """Best-effort link health check: set story['link_ok']=False for URLs that don't resolve
+    (so the renderer can leave a note). Fail-safe — transient/unknown errors leave it unset
+    (treated as OK, no false 'broken' notes), and this never raises into the send path."""
+    import concurrent.futures
+    import requests
+
+    def check(u):
+        if not u or u == "#":
+            return False
+        headers = {"User-Agent": "Mozilla/5.0 (MarketIntel link check)"}
+        try:
+            r = requests.head(u, timeout=timeout, allow_redirects=True, headers=headers)
+            if r.status_code in (403, 405) or r.status_code >= 500:
+                # Some servers reject HEAD; confirm with a light GET before judging.
+                r = requests.get(u, timeout=timeout, allow_redirects=True, stream=True,
+                                 headers=headers)
+            return r.status_code < 400
+        except Exception:
+            return None  # unknown — do NOT flag as broken
+
+    urls = list({s.get("url", "") for s in stories if s.get("url")})
+    results = {}
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futs = {ex.submit(check, u): u for u in urls}
+            for f in concurrent.futures.as_completed(futs, timeout=timeout * 2 + 5):
+                results[futs[f]] = f.result()
+    except Exception:
+        pass
+    for s in stories:
+        ok = results.get(s.get("url", ""))
+        if ok is False:
+            s["link_ok"] = False
+        elif ok is True:
+            s["link_ok"] = True
+
+
 def _resolve_recipients(settings, spec: str) -> list[str]:
     """Resolve --recipients: a named list from briefing.recipient_lists (e.g. 'test'),
     or a comma-separated list of email addresses."""
@@ -407,6 +445,12 @@ def main():
             s["published"] = m.get("published")
         if not s.get("fetched"):
             s["fetched"] = m.get("fetched")
+
+    # Best-effort link-health check so the renderer can flag any dead links (fail-safe).
+    try:
+        _flag_broken_links(briefing["stories"])
+    except Exception as exc:
+        log.warning("link-health check skipped (%s)", exc)
 
     # Historical awareness: add an "Additional context" note to any story that has
     # related prior coverage in our database (Gemini-judged). Off unless

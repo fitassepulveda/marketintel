@@ -16,9 +16,9 @@ with JSON:
   "stories": [
     {"title": "...", "area": "...", "source": "...", "url": "...",
      "what_happened": "1-2 sentences",
-     "why_it_matters": "REQUIRED, never blank: 1-2 sentences on the strategic significance to the organization (refer to it by its short name) — why leadership should care",
-     "exposure": "REQUIRED: the specific institutional risk OR opportunity this creates, in one sentence (distinct from why_it_matters)",
-     "watch_next": "REQUIRED — WHAT UHEALTH SHOULD CONSIDER (rendered as 'What UHealth should consider'). Connect THIS story directly to what UHealth should do about it, IF ANYTHING — a concrete consideration or action, OR simply something to watch (with a judgment-based time horizon that fits, e.g. 'in the next few days', 'next quarter'), OR an explicit 'no action needed — monitor only' when that is the honest answer. Be specific to UHealth's position; do not force an action where none is warranted. One sentence.",
+     "why_it_matters": "REQUIRED, never blank: 1-2 sentences on the strategic significance to the organization (refer to it by its short name) — why leadership should care. FOLD IN the specific institutional risk OR opportunity this creates (these concepts overlap, so combine them here rather than separating them out).",
+     "exposure": "OPTIONAL — leave as an empty string \"\". The institutional risk/opportunity is now folded into why_it_matters; do not duplicate it here.",
+     "watch_next": "REQUIRED — WHAT UHEALTH SHOULD CONSIDER (rendered under that label, so do NOT restate the label in your text). Frame it as an OPPORTUNITY or CONSIDERATION, not a precise directive — exploratory and suggestive rather than declarative (e.g. 'Evaluate opportunities to enhance UHealth's community-benefit impact and awareness across social-determinants-of-health areas.'). It may be a thing to watch (with a rough time horizon) or 'no action needed — monitor only' when that fits. One sentence, specific to UHealth but not over-precise.",
      "coverage_label": "a short descriptive label for the source link, e.g. 'STAT reporting on pharma job shifts'"}
   ],
   "watch": ["developments to watch in coming days/weeks/months"],

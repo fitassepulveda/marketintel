@@ -9,25 +9,31 @@ from html import escape
 
 import re
 
+# Streamlined, scannable area labels.
 AREA_LABELS = {
-    "national_policy": "National Healthcare Policy & Industry",
-    "south_florida_competitive": "South Florida Competitive Intel",
-    "payer_insurance": "Payer & Insurance Intel",
+    "national_policy": "Policy",
+    "south_florida_competitive": "South FL Providers",
+    "payer_insurance": "Payer",
     "innovation_ai": "Innovation & AI",
-    "public_health_risk": "Public Health & Geopolitical Risk",
-    "reputation_media": "Reputation & Media Monitoring",
+    "public_health_risk": "Public Health",
+    "reputation_media": "Reputation",
 }
 
-# Per-area color coding: (accent — used for the left bar + chip text, chip background tint).
+# Brand palette (from the team PPT) — used throughout so the email feels native.
+BRAND = "#006888"      # primary (titles, section headers, links)
+INK = "#313A45"        # body text
+MUTED = "#6B7480"      # secondary / meta text
+
+# Per-area color coding from the PPT palette: (solid chip/bar color, text-on-chip color).
 AREA_COLORS = {
-    "national_policy":           ("#2D9CDB", "#E3F2FB"),
-    "south_florida_competitive": ("#C0392B", "#FDECEA"),
-    "payer_insurance":           ("#6B3FA0", "#F0EAFB"),
-    "innovation_ai":             ("#0B7C77", "#E4F7F5"),
-    "public_health_risk":        ("#9A6700", "#FBF1E0"),
-    "reputation_media":          ("#475063", "#EEF1F5"),
+    "south_florida_competitive": ("#006888", "#FFFFFF"),  # teal
+    "national_policy":           ("#F47321", "#FFFFFF"),  # orange
+    "payer_insurance":           ("#005030", "#FFFFFF"),  # green
+    "innovation_ai":             ("#313A45", "#FFFFFF"),  # slate
+    "public_health_risk":        ("#FAC7A6", "#313A45"),  # peach
+    "reputation_media":          ("#C4C5C5", "#313A45"),  # gray
 }
-DEFAULT_AREA_COLOR = ("#1F3864", "#EAF0F8")
+DEFAULT_AREA_COLOR = ("#313A45", "#FFFFFF")
 
 # Abbreviations expanded as footnotes at the bottom of the email (only those that appear).
 ABBREVIATIONS = {
@@ -82,115 +88,113 @@ def _abbr_footnotes_html(blob: str) -> str:
     items = " &nbsp;·&nbsp; ".join(
         f"<b>{escape(ab)}</b> {escape(full)}" for ab, full in found)
     return (
-        '<p style="color:#888;font-size:11px;line-height:1.5;margin:14px 0 0;'
-        'border-top:1px solid #E6EBF2;padding-top:8px">'
-        f'<b style="color:#1F3864">Abbreviations</b> &nbsp; {items}</p>'
+        f'<p style="color:{MUTED};font-size:10px;line-height:1.5;margin:16px 0 0;'
+        f'border-top:1px solid #E6EBF2;padding-top:8px">'
+        f'<b style="color:{BRAND}">Abbreviations</b> &nbsp; {items}</p>'
     )
 
 
 def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str],
                 greeting: str | None = None, runners: list[dict] | None = None) -> str:
     def sec(title):
-        return (f'<h2 style="color:#1F3864;font-size:11px;margin:9px 0 3px;'
+        return (f'<h2 style="color:{BRAND};font-size:12px;margin:18px 0 6px;'
                 f'text-transform:uppercase;letter-spacing:.04em">{escape(title)}</h2>')
 
     stories = briefing.get("stories", [])
 
-    # Overall relevance score — average of the selected stories' LLM relevance (0-10),
-    # a quick read on how strongly prioritized the whole report is.
-    nums = []
-    for s in stories:
-        try:
-            nums.append(float(s.get("llm_score")))
-        except (TypeError, ValueError):
-            pass
-    avg = sum(nums) / len(nums) if nums else None
-    avg_html = (
-        f'<span style="background:#1F3864;color:#fff;font-size:12px;font-weight:bold;'
-        f'padding:2px 9px;border-radius:10px;white-space:nowrap">Report relevance '
-        f'{avg:.1f}/10</span> <span style="color:#888;font-size:11px">avg of {len(nums)} '
-        f'stories</span>'
-    ) if avg is not None else ""
-
-    # Group stories by intelligence area, and order the area sections by the day's priority
-    # (the top story score in each area, high -> low). Within an area, sort by score.
     def _score(s):
         try:
             return float(s.get("llm_score"))
         except (TypeError, ValueError):
             return -1.0
+
+    # Overall relevance score — average of the selected stories' LLM relevance (0-10).
+    nums = [_score(s) for s in stories if _score(s) >= 0]
+    avg = sum(nums) / len(nums) if nums else None
+    avg_html = (
+        f'<span style="background:{BRAND};color:#fff;font-size:11px;font-weight:bold;'
+        f'padding:2px 9px;border-radius:10px;white-space:nowrap">Report relevance '
+        f'{avg:.1f}/10</span> <span style="color:{MUTED};font-size:10px">avg of {len(nums)} '
+        f'stories</span>'
+    ) if avg is not None else ""
+
+    # Group by area for the snapshot, ordered by each area's AVERAGE relevance (high -> low).
     groups: dict[str, list] = {}
     for s in stories:
         groups.setdefault(s.get("area", ""), []).append(s)
-    for g in groups.values():
-        g.sort(key=_score, reverse=True)
 
     def _area_avg(area):
         vals = [_score(s) for s in groups[area] if _score(s) >= 0]
         return sum(vals) / len(vals) if vals else -1.0
 
-    # Order the snapshot areas by their AVERAGE relevance (high -> low), not the top score.
     ordered_areas = sorted(groups, key=_area_avg, reverse=True)
 
     parts = [
-        '<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#222;'
-        'font-size:12.5px;line-height:1.28">',
-        (f'<p style="font-size:12.5px;color:#222;margin:0 0 2px">Good morning {escape(greeting)},</p>'
+        f'<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:{INK};'
+        f'font-size:12px;line-height:1.4">',
+        (f'<p style="font-size:12px;margin:0 0 3px">Good morning {escape(greeting)},</p>'
          if greeting else ''),
-        f'<h1 style="color:#1F3864;font-size:15px;margin:0 0 1px">Market Intelligence Briefing — '
+        f'<h1 style="color:{BRAND};font-size:16px;margin:0 0 2px">Market Intelligence Briefing — '
         f'{escape(date_str)}</h1>',
-        f'<p style="color:#666;font-size:10px;margin:0 0 4px">{escape(org_name)} · Highly '
+        f'<p style="color:{MUTED};font-size:10px;margin:0 0 6px">{escape(org_name)} · Highly '
         f'Confidential &nbsp; {avg_html}</p>',
     ]
 
-    # Coverage snapshot — a color-coded index of the day's areas, highest priority first,
-    # each with its story count. Replaces the old takeaways list.
+    # Coverage snapshot — color-coded index of the day's areas, highest avg relevance first.
     snap = []
     for area in ordered_areas:
-        accent, tint = AREA_COLORS.get(area, DEFAULT_AREA_COLOR)
+        bg, ontext = AREA_COLORS.get(area, DEFAULT_AREA_COLOR)
         a_avg = _area_avg(area)
         avg_txt = f"{a_avg:.1f}" if a_avg >= 0 else "—"
         snap.append(
-            f'<span style="background:{tint};color:{accent};font-size:11px;font-weight:bold;'
-            f'padding:1px 7px;border-radius:3px;white-space:nowrap;display:inline-block;'
-            f'margin:0 4px 3px 0">{escape(AREA_LABELS.get(area, area))} &nbsp;·&nbsp; avg '
+            f'<span style="background:{bg};color:{ontext};font-size:10px;font-weight:bold;'
+            f'padding:2px 8px;border-radius:3px;white-space:nowrap;display:inline-block;'
+            f'margin:0 5px 4px 0">{escape(AREA_LABELS.get(area, area))} &nbsp;·&nbsp; avg '
             f'{avg_txt}/10 &nbsp;·&nbsp; Articles: {len(groups[area])}</span>'
         )
     parts.append(sec("Coverage snapshot"))
-    parts.append('<p style="margin:0 0 3px">' + "".join(snap) + '</p>')
+    parts.append('<p style="margin:0 0 4px">' + "".join(snap) + '</p>')
 
-    fld = 'style="margin:1px 0;font-size:11.5px;line-height:1.25"'
+    # Stories — flat list ordered by relevance score, with breathing room between cards.
+    fld = 'style="margin:3px 0;font-size:12px;line-height:1.4"'
     parts.append(sec("Today's Top Stories"))
     for s in sorted(stories, key=_score, reverse=True):
         area = s.get("area", "")
-        accent, tint = AREA_COLORS.get(area, DEFAULT_AREA_COLOR)
+        bg, ontext = AREA_COLORS.get(area, DEFAULT_AREA_COLOR)
         score = _fmt_score(s.get("llm_score"))
         score_badge = (
-            f'<span style="background:#EAF0F8;color:#1F3864;font-size:11px;font-weight:bold;'
+            f'<span style="background:#E6EEF0;color:{BRAND};font-size:10px;font-weight:bold;'
             f'padding:1px 7px;border-radius:10px;white-space:nowrap">Relevance {score}/10</span>'
         ) if score else ""
         chip = (
-            f'<span style="background:{tint};color:{accent};font-size:10px;font-weight:bold;'
-            f'padding:1px 6px;border-radius:3px;white-space:nowrap">'
+            f'<span style="background:{bg};color:{ontext};font-size:10px;font-weight:bold;'
+            f'padding:1px 7px;border-radius:3px;white-space:nowrap">'
             f'{escape(AREA_LABELS.get(area, area))}</span>'
         )
-        next_steps = s.get("next_steps") or s.get("watch_next", "")
+        # "What UHealth should consider" — strip any echoed label the model prepends.
+        ns = s.get("next_steps") or s.get("watch_next", "")
+        ns = re.sub(r"^\s*what uhealth should consider:?\s*", "", ns, flags=re.I)
         pub = _fmt_date(s.get("published"))
-        pub_html = (f'<span style="color:#888;font-size:10px">&nbsp;·&nbsp; {escape(pub)}</span>'
+        pub_html = (f'<span style="color:{MUTED};font-size:10px">&nbsp;·&nbsp; {escape(pub)}</span>'
                     if pub and pub != "—" else "")
+        # Link health — if the URL is missing or verified broken, link out is unsafe; note it.
+        url = s.get("url", "") or ""
+        link_broken = (s.get("link_ok") is False) or (not url) or url == "#"
+        title_txt = escape(s.get("title", ""))
+        title_html = (f'<a href="{escape(url)}" style="color:{INK};text-decoration:none">{title_txt}</a>'
+                      if url and url != "#" else title_txt)
+        broken_note = (' <span style="color:#A33;font-size:10px;font-weight:normal">'
+                       '(link unavailable — search the headline)</span>' if link_broken else '')
         parts.append(
-            f'<div style="border-left:3px solid {accent};padding:3px 9px;margin:4px 0;'
+            f'<div style="border-left:4px solid {bg};padding:6px 11px;margin:10px 0;'
             f'background:#F7F9FC">'
-            f'<p style="margin:0 0 1px">{chip}&nbsp; {score_badge}'
-            f'<span style="color:#888;font-size:10px">&nbsp; {escape(s.get("source", ""))}</span>'
+            f'<p style="margin:0 0 3px">{chip}&nbsp; {score_badge}'
+            f'<span style="color:{MUTED};font-size:10px">&nbsp; {escape(s.get("source", ""))}</span>'
             f'{pub_html}</p>'
-            f'<p style="margin:0 0 1px"><b><a href="{escape(s.get("url", "#"))}" '
-            f'style="color:#1F3864;text-decoration:none">{escape(s.get("title", ""))}</a></b></p>'
+            f'<p style="margin:0 0 3px;font-size:13px"><b>{title_html}</b>{broken_note}</p>'
             f'<p {fld}><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
             f'<p {fld}><b>Why it matters:</b> {escape(s.get("why_it_matters", ""))}</p>'
-            f'<p {fld}><b>Exposure:</b> {escape(s.get("exposure", ""))}</p>'
-            + (f'<p {fld}><b>What UHealth should consider:</b> {escape(next_steps)}</p>'
-               if next_steps else "")
+            + (f'<p {fld}><b>What UHealth should consider:</b> {escape(ns)}</p>' if ns else "")
             + '</div>'
         )
 
@@ -199,37 +203,37 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
         parts.append(sec("Also considered — just missed the cut"))
         for a in runners:
             r_area = a.get("area", "")
-            r_accent, r_tint = AREA_COLORS.get(r_area, DEFAULT_AREA_COLOR)
+            r_bg, r_ontext = AREA_COLORS.get(r_area, DEFAULT_AREA_COLOR)
             sc = _fmt_score(a.get("llm_score"))
-            sc_txt = (f'<span style="color:#888;font-size:10px">&nbsp;·&nbsp; {sc}/10</span>'
+            sc_txt = (f'<span style="color:{MUTED};font-size:10px">&nbsp;·&nbsp; {sc}/10</span>'
                       if sc else "")
             r_chip = (
-                f'<span style="background:{r_tint};color:{r_accent};font-size:9px;font-weight:bold;'
-                f'padding:0 5px;border-radius:3px;white-space:nowrap">'
+                f'<span style="background:{r_bg};color:{r_ontext};font-size:9px;font-weight:bold;'
+                f'padding:1px 6px;border-radius:3px;white-space:nowrap">'
                 f'{escape(AREA_LABELS.get(r_area, r_area))}</span>'
             )
+            r_url = a.get("url", "") or "#"
             parts.append(
-                f'<p style="margin:1px 0;font-size:11px"><a href="{escape(a.get("url", "#"))}" '
-                f'style="color:#1F3864;text-decoration:none">{escape(a.get("title", ""))}</a> '
+                f'<p style="margin:3px 0;font-size:11px"><a href="{escape(r_url)}" '
+                f'style="color:{INK};text-decoration:none">{escape(a.get("title", ""))}</a> '
                 f'&nbsp;{r_chip}{sc_txt}</p>'
             )
 
     if failing:
         parts.append(
-            f'<p style="color:#A33;font-size:11px;margin:8px 0 0">Source health alert — no items '
+            f'<p style="color:#A33;font-size:10px;margin:10px 0 0">Source health alert — no items '
             f'for 2+ days: {escape(", ".join(failing))}</p>'
         )
 
     # Abbreviation footnotes — scan everything visible in the email body.
     blob = " ".join(
         f'{s.get("title","")} {s.get("what_happened","")} {s.get("why_it_matters","")} '
-        f'{s.get("exposure","")} {s.get("next_steps","") or s.get("watch_next","")} '
-        f'{AREA_LABELS.get(s.get("area",""), "")}'
+        f'{s.get("next_steps","") or s.get("watch_next","")} {AREA_LABELS.get(s.get("area",""), "")}'
         for s in stories
     )
     parts.append(_abbr_footnotes_html(blob))
-    parts.append('<p style="color:#bbb;font-size:10px;margin:8px 0 0">Generated automatically by '
-                 'the Market Intelligence Platform.</p></div>')
+    parts.append(f'<p style="color:#bbb;font-size:10px;margin:10px 0 0">Generated automatically by '
+                 f'the Market Intelligence Platform.</p></div>')
     return "".join(parts)
 
 
