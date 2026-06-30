@@ -180,9 +180,10 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
         # Link health — if the URL is missing or verified broken, link out is unsafe; note it.
         url = s.get("url", "") or ""
         link_broken = (s.get("link_ok") is False) or (not url) or url == "#"
-        title_txt = escape(s.get("title", ""))
-        title_html = (f'<a href="{escape(url)}" style="color:{INK};text-decoration:none">{title_txt}</a>'
-                      if url and url != "#" else title_txt)
+        # Headline = one-sentence executive topline (falls back to the raw article title).
+        headline = escape(s.get("topline") or s.get("title", ""))
+        title_html = (f'<a href="{escape(url)}" style="color:{INK};text-decoration:none">{headline}</a>'
+                      if url and url != "#" else headline)
         broken_note = (' <span style="color:#A33;font-size:10px;font-weight:normal">'
                        '(link unavailable — search the headline)</span>' if link_broken else '')
         parts.append(

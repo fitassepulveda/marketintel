@@ -14,7 +14,9 @@ with JSON:
   "takeaways": ["3-5 punchy, MBB-consultant-style bullets that FUSE the key development with its 'so what' / the recommended action — each ties an insight to what leadership should consider doing, so takeaways and actions read as one thought. Sharp, concrete, one sentence each. Use **double asterisks** to bold the 2-4 highest-impact words or phrases in each bullet (strategic bolding)."],
   "key_question_answers": {"<area>": "1-3 sentence answer to that area's key question based on today's items, or 'No significant developments today.'"},
   "stories": [
-    {"title": "...", "area": "...", "source": "...", "url": "...",
+    {"title": "...",
+     "topline": "REQUIRED — a ONE-SENTENCE executive topline that replaces the article headline in the report: state what happened phrased so an executive immediately grasps the IMPACT (not the publisher's headline wording). One line, ~12-22 words, concrete and specific.",
+     "area": "...", "source": "...", "url": "...",
      "what_happened": "1-2 sentences",
      "why_it_matters": "REQUIRED, never blank: 1-2 sentences on the strategic significance to the organization (refer to it by its short name) — why leadership should care. FOLD IN the specific institutional risk OR opportunity this creates (these concepts overlap, so combine them here rather than separating them out).",
      "exposure": "OPTIONAL — leave as an empty string \"\". The institutional risk/opportunity is now folded into why_it_matters; do not duplicate it here.",

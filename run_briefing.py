@@ -231,13 +231,18 @@ def _flag_broken_links(stories, timeout: int = 5, max_workers: int = 8) -> None:
         headers = {"User-Agent": "Mozilla/5.0 (MarketIntel link check)"}
         try:
             r = requests.head(u, timeout=timeout, allow_redirects=True, headers=headers)
-            if r.status_code in (403, 405) or r.status_code >= 500:
-                # Some servers reject HEAD; confirm with a light GET before judging.
+            if r.status_code in (403, 405, 429) or r.status_code >= 500:
+                # Bot-block / HEAD-not-allowed: confirm with a light GET before judging.
                 r = requests.get(u, timeout=timeout, allow_redirects=True, stream=True,
                                  headers=headers)
-            return r.status_code < 400
+            # ONLY flag links that are DEFINITIVELY gone. 403/429/5xx are usually bot
+            # protection on a perfectly good page (false positives erode trust), and
+            # timeouts are transient — never flag those.
+            if r.status_code in (404, 410):
+                return False
+            return True
         except Exception:
-            return None  # unknown — do NOT flag as broken
+            return None  # unknown (timeout, transient, bot-block) — do NOT flag as broken
 
     urls = list({s.get("url", "") for s in stories if s.get("url")})
     results = {}
