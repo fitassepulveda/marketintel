@@ -389,14 +389,24 @@ def main():
             "coverage_label": f'{a["source"]} coverage',
         })
 
-    # Attach each story's LLM relevance score (0-10) from the ranked DB rows so the
-    # briefing renderer can show a score next to every article. Matched by URL, then title.
-    _score_by_url = {emailer._norm_url(a["url"]): a.get("llm_score") for a in top if a.get("url")}
-    _score_by_title = {str(a["title"]).strip().lower(): a.get("llm_score") for a in top if a.get("title")}
+    # Attach each story's LLM relevance score (0-10) AND its publish/fetch dates from the
+    # ranked DB rows so the briefing renderer can show a score and a Published date next to
+    # every article. Dates use the same source as the digest: the article's `published`
+    # field (RSS/Google-News pubDate, page-enriched when missing). Matched by URL, then title.
+    def _meta(a):
+        return {"llm_score": a.get("llm_score"), "published": a.get("published"),
+                "fetched": a.get("fetched")}
+    _meta_by_url = {emailer._norm_url(a["url"]): _meta(a) for a in top if a.get("url")}
+    _meta_by_title = {str(a["title"]).strip().lower(): _meta(a) for a in top if a.get("title")}
     for s in briefing["stories"]:
+        m = (_meta_by_url.get(emailer._norm_url(s.get("url", "")))
+             or _meta_by_title.get(str(s.get("title", "")).strip().lower()) or {})
         if s.get("llm_score") is None:
-            s["llm_score"] = (_score_by_url.get(emailer._norm_url(s.get("url", "")))
-                              or _score_by_title.get(str(s.get("title", "")).strip().lower()))
+            s["llm_score"] = m.get("llm_score")
+        if not s.get("published"):
+            s["published"] = m.get("published")
+        if not s.get("fetched"):
+            s["fetched"] = m.get("fetched")
 
     # Historical awareness: add an "Additional context" note to any story that has
     # related prior coverage in our database (Gemini-judged). Off unless

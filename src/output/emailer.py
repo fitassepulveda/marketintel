@@ -175,11 +175,15 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
             f'{escape(AREA_LABELS.get(area, area))}</span>'
         )
         next_steps = s.get("next_steps") or s.get("watch_next", "")
+        pub = _fmt_date(s.get("published"))
+        pub_html = (f'<span style="color:#888;font-size:10px">&nbsp;·&nbsp; {escape(pub)}</span>'
+                    if pub and pub != "—" else "")
         parts.append(
             f'<div style="border-left:3px solid {accent};padding:3px 9px;margin:4px 0;'
             f'background:#F7F9FC">'
             f'<p style="margin:0 0 1px">{chip}&nbsp; {score_badge}'
-            f'<span style="color:#888;font-size:10px">&nbsp; {escape(s.get("source", ""))}</span></p>'
+            f'<span style="color:#888;font-size:10px">&nbsp; {escape(s.get("source", ""))}</span>'
+            f'{pub_html}</p>'
             f'<p style="margin:0 0 1px"><b><a href="{escape(s.get("url", "#"))}" '
             f'style="color:#1F3864;text-decoration:none">{escape(s.get("title", ""))}</a></b></p>'
             f'<p {fld}><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
