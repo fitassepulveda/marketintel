@@ -24,6 +24,9 @@ BRAND = "#006888"      # primary (titles, section headers, links)
 INK = "#313A45"        # body text
 MUTED = "#6B7480"      # secondary / meta text
 
+# Contacts shown in the feedback footer (same addresses as the test recipient list).
+FEEDBACK_CONTACTS = ["wef28@miami.edu", "fxs1141@miami.edu"]
+
 # Per-area color coding from the PPT palette: (solid chip/bar color, text-on-chip color).
 AREA_COLORS = {
     "south_florida_competitive": ("#006888", "#FFFFFF"),  # teal
@@ -233,7 +236,19 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
         for s in stories
     )
     parts.append(_abbr_footnotes_html(blob))
-    parts.append(f'<p style="color:#bbb;font-size:10px;margin:10px 0 0">Generated automatically by '
+
+    # Feedback / distribution-list footer.
+    contacts = " or ".join(
+        f'<a href="mailto:{escape(e)}" style="color:{BRAND}">{escape(e)}</a>'
+        for e in FEEDBACK_CONTACTS)
+    if contacts:
+        parts.append(
+            f'<p style="color:{MUTED};font-size:10px;line-height:1.5;margin:12px 0 0">'
+            f'We welcome your input and are continuously refining this briefing. To share '
+            f'feedback or make subscription / distribution-list changes, please contact '
+            f'{contacts}.</p>'
+        )
+    parts.append(f'<p style="color:#bbb;font-size:10px;margin:6px 0 0">Generated automatically by '
                  f'the Market Intelligence Platform.</p></div>')
     return "".join(parts)
 
