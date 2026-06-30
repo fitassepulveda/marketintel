@@ -47,6 +47,12 @@ profiles:
     email: "fxs1141@miami.edu"
     active: true
 
+  - name: "AXS"
+    title: ""
+    display_name: "Colleague"   # TODO: replace with the recipient's first name for the greeting
+    email: "axs9248@miami.edu"
+    active: true
+
 # --- HOW TO PERSONALIZE CONTENT LATER (not active) ---
 # Add either `subscore_weights` (direct 0-10 per dimension) or `ahp_pairwise`
 # (pairwise judgments). The moment a profile has weights, its report re-ranks to that
