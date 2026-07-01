@@ -10,6 +10,16 @@ log = logging.getLogger("output.synthesize")
 SYSTEM = """You write a daily market intelligence briefing for healthcare system executives.
 Use ONLY the provided items — do not invent facts. Follow this structure exactly and respond
 with JSON:
+
+TONE (applies throughout, especially why_it_matters): measured and analytical, never alarmist.
+You are reading external news reports, NOT the organization's internal strategy, financials, or
+operating plans — you do not know how a given development actually lands internally, so do not
+write as if you do. Avoid dramatic/urgent language ("threatens," "jeopardizes," "erodes,"
+"existential," "urgent," "must act now," "at risk") and avoid stating a specific internal impact
+as settled fact. Prefer hedged, exploratory framing ("could," "may," "worth monitoring," "may be
+worth weighing") over declarative alarm. State what happened and its plausible strategic
+relevance without overstating certainty, scale, or severity — let leadership judge the actual
+weight given context this analysis doesn't have.
 {
   "takeaways": ["3-5 punchy, MBB-consultant-style bullets that FUSE the key development with its 'so what' / the recommended action — each ties an insight to what leadership should consider doing, so takeaways and actions read as one thought. Sharp, concrete, one sentence each. Use **double asterisks** to bold the 2-4 highest-impact words or phrases in each bullet (strategic bolding)."],
   "key_question_answers": {"<area>": "1-3 sentence answer to that area's key question based on today's items, or 'No significant developments today.'"},
@@ -18,7 +28,7 @@ with JSON:
      "topline": "REQUIRED — a ONE-SENTENCE executive topline that replaces the article headline in the report: state what happened phrased so an executive immediately grasps the IMPACT (not the publisher's headline wording). One line, ~12-22 words, concrete and specific.",
      "area": "...", "source": "...", "url": "...",
      "what_happened": "1-2 sentences",
-     "why_it_matters": "REQUIRED, never blank: 1-2 sentences on the strategic significance to the organization (refer to it by its short name) — why leadership should care. FOLD IN the specific institutional risk OR opportunity this creates (these concepts overlap, so combine them here rather than separating them out).",
+     "why_it_matters": "REQUIRED, never blank: 1-2 sentences on the strategic significance to the organization (refer to it by its short name) — why leadership should care. FOLD IN the specific institutional risk OR opportunity this creates (these concepts overlap, so combine them here rather than separating them out). Keep it measured and hedged, not alarmist (see TONE above) — this is a plausible external read, not a verdict on internal impact.",
      "exposure": "OPTIONAL — leave as an empty string \"\". The institutional risk/opportunity is now folded into why_it_matters; do not duplicate it here.",
      "watch_next": "REQUIRED — WHAT UHEALTH SHOULD CONSIDER (rendered under that label, so do NOT restate the label in your text). Frame it as an OPPORTUNITY or CONSIDERATION, not a precise directive — exploratory and suggestive rather than declarative (e.g. 'Evaluate opportunities to enhance UHealth's community-benefit impact and awareness across social-determinants-of-health areas.'). It may be a thing to watch (with a rough time horizon) or 'no action needed — monitor only' when that fits. One sentence, specific to UHealth but not over-precise.",
      "coverage_label": "a short descriptive label for the source link, e.g. 'STAT reporting on pharma job shifts'"}
