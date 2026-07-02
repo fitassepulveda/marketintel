@@ -94,6 +94,24 @@ def _complete(subs) -> bool:
     return any(float(v) > 0 for v in subs.values())
 
 
+def load_all_articles(con) -> list[dict]:
+    """Every article in the database (the full scanned log), with sub-scores parsed."""
+    import json
+    rows = con.execute(
+        "SELECT title, source, area, published, fetched, llm_score, composite_score, subscores "
+        "FROM articles").fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        if isinstance(d.get("subscores"), str):
+            try:
+                d["subscores"] = json.loads(d["subscores"])
+            except Exception:
+                d["subscores"] = None
+        out.append(d)
+    return out
+
+
 def backfill_subscores(con, client, cfg, pool: list[dict], max_items: int = 40):
     """Sub-score articles missing the current dimensions — but at most `max_items` per
     run (freshest first), so a one-time backlog (e.g. after adding dimensions) is spread
@@ -307,23 +325,71 @@ def build_workbook(a: dict, out: Path):
     for c in range(2, 4 + len(DIMS)):
         ws4.column_dimensions[chr(64 + c)].width = 13
 
+    # Sheet 6 — EVERY article scanned so far (full log); blanks where a score doesn't exist yet
+    arts = a.get("articles", [])
+    wsA = wb.create_sheet("Articles")
+    wsA.append(["Relevance", "Composite", "Area", "Source", "Date", "Title"] + DIMS)
+    _hdr(wsA, 1, 6 + len(DIMS))
+
+    def _num(v):
+        try:
+            return round(float(v), 1)
+        except (TypeError, ValueError):
+            return ""
+    for art in sorted(arts, key=lambda x: (x.get("composite_score")
+                                           if x.get("composite_score") is not None else -1),
+                      reverse=True):
+        ss = art.get("subscores") or {}
+        date = (art.get("published") or art.get("fetched") or "")[:10]
+        wsA.append([_num(art.get("llm_score")), _num(art.get("composite_score")),
+                    art.get("area", ""), art.get("source", ""), date,
+                    (art.get("title") or "")[:90]]
+                   + [(round(float(ss[d]), 1) if d in ss else "") for d in DIMS])
+    for col, w in (("A", 10), ("B", 10), ("C", 20), ("D", 20), ("E", 12), ("F", 50)):
+        wsA.column_dimensions[col].width = w
+    for c in range(7, 7 + len(DIMS)):
+        wsA.column_dimensions[chr(64 + c)].width = 11
+    wsA.freeze_panes = "A2"
+
     out.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out)
 
 
 def summary_html(a: dict, date_h: str) -> str:
-    ranked = sorted(zip(DIMS, a["influence"]), key=lambda x: -x[1])
-    top = "".join(f"<li>{d.replace('_',' ')}: {inf*100:.0f}%</li>" for d, inf in ranked[:3])
-    r2 = f"{a['r2']:.2f}" if a["r2"] is not None else "n/a (need >=15 articles)"
+    preset = preset_weights()
+    means = a.get("means_all", {})
+    infl = {d: float(i) for d, i in zip(DIMS, a["influence"])}
+    r2 = f"{a['r2']:.2f}" if a.get("r2") is not None else "n/a (need >=15 articles)"
+    r2e = f"{a['r2_ext']:.2f}" if a.get("r2_ext") is not None else "n/a"
+
+    th = 'style="background:#1F3864;color:#fff;padding:5px 10px;text-align:%s"'
+    rows = ""
+    for i, d in enumerate(sorted(DIMS, key=lambda d: infl.get(d, 0), reverse=True)):
+        bg = "#F2F6FC" if i % 2 else "#FFFFFF"
+        rows += (
+            f'<tr style="background:{bg}">'
+            f'<td style="padding:4px 10px">{d.replace("_", " ").title()}</td>'
+            f'<td style="padding:4px 10px;text-align:center">{means.get(d, 0):.1f}</td>'
+            f'<td style="padding:4px 10px;text-align:center">{infl.get(d, 0)*100:.0f}%</td>'
+            f'<td style="padding:4px 10px;text-align:center">{preset.get(d, 0)*100:.0f}%</td></tr>')
     return (
-        f'<div style="font-family:Arial;max-width:640px">'
+        '<div style="font-family:Arial,sans-serif;max-width:720px;color:#222">'
         f'<h2 style="color:#1F3864">Scoring Insights — {date_h}</h2>'
-        f'<p>Based on <b>{a["n"]}</b> recently scored articles (avg relevance '
-        f'{a["avg_relevance"]:.1f}/10). What the model rewarded most:</p><ol>{top}</ol>'
-        f'<p>Regression fit R&sup2; = {r2}. Full breakdown — influence chart, 6&times;6 '
-        f'correlation heatmap, score distribution, and per-area averages — is attached.</p>'
-        f'<p style="color:#888;font-size:12px">These are interpretable approximations of the '
-        f'model&rsquo;s single holistic 0&ndash;10 judgment, not its literal internals.</p></div>')
+        f'<p>Based on <b>{a.get("n_all", a["n"])}</b> sub-scored articles '
+        f'(last day: {a.get("n_last", 0)}). Variance explained — dimensions: '
+        f'R&sup2;={r2}; + intelligence area: R&sup2;={r2e}.</p>'
+        '<table style="border-collapse:collapse;font-size:13px;border:1px solid #D6DEEA">'
+        f'<tr><th {th % "left"}>Dimension</th><th {th % "center"}>Reward (0&ndash;10)</th>'
+        f'<th {th % "center"}>Influence</th><th {th % "center"}>Preset (AHP)</th></tr>'
+        f'{rows}</table>'
+        '<p style="color:#666;font-size:12px;margin-top:8px">'
+        '<b>Reward</b> = avg score the model gave that dimension &nbsp;·&nbsp; '
+        '<b>Influence</b> = how much it drives the relevance score &nbsp;·&nbsp; '
+        '<b>Preset</b> = what we said should matter (AHP).</p>'
+        '<p style="color:#666;font-size:12px">The attached workbook has every article scanned, '
+        'the correlation heatmap, score distribution, and per-area breakdown.</p>'
+        '<p style="color:#888;font-size:12px">These are interpretable approximations of the '
+        'model&rsquo;s single holistic 0&ndash;10 judgment, not its literal internals.</p></div>')
 
 
 def email_workbook(path: Path, html: str, subject: str, to_addr: str):
@@ -377,6 +443,7 @@ def main():
     a["means_last"] = mean_rewards(last_pool)
     a["n_all"] = len(all_pool)
     a["n_last"] = len(last_pool)
+    a["articles"] = load_all_articles(con)   # full log of EVERY article scanned (Articles sheet)
 
     run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     date_h = datetime.now().strftime("%A, %B %d, %Y")

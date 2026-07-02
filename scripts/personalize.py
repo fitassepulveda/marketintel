@@ -128,7 +128,8 @@ def main():
         if shared:
             shared_briefing = synthesize.build_briefing(
                 client, models["synthesis"], settings["llm"]["max_tokens_synthesis"],
-                settings["org"], settings["key_questions"], shared)
+                settings["org"], settings["key_questions"], shared,
+                style=settings["briefing"].get("synthesis_style", ""))
             shared_count = len(shared)
 
     for p in profs:
@@ -140,7 +141,8 @@ def main():
                 continue
             briefing = synthesize.build_briefing(
                 client, models["synthesis"], settings["llm"]["max_tokens_synthesis"],
-                settings["org"], settings["key_questions"], ranked)
+                settings["org"], settings["key_questions"], ranked,
+                style=settings["briefing"].get("synthesis_style", ""))
             count = len(ranked)
         else:
             if not shared_briefing:

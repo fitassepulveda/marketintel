@@ -405,6 +405,7 @@ def main():
                 client, models["synthesis"],
                 cfg["settings"]["llm"]["max_tokens_synthesis"],
                 cfg["settings"]["org"], cfg["settings"]["key_questions"], top,
+                style=cfg["settings"]["briefing"].get("synthesis_style", ""),
             )
         except Exception as exc:
             # No synthesized/prioritized result -> DO NOT send a degraded digest to leadership.

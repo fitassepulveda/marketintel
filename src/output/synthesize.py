@@ -42,19 +42,24 @@ Order stories by importance. Be concrete, executive-ready, and concise."""
 
 
 def build_briefing(client: LLMClient, model: str, max_tokens: int, org: dict,
-                   key_questions: dict, articles: list[dict]) -> dict:
-    items_txt = "\n\n".join(
-        f'[{i}] area={a["area"]} | score={a["composite_score"]} | source={a["source"]}\n'
-        f'title: {a["title"]}\nurl: {a["url"]}\n'
-        f'summary: {(a["summary"] or a["content"] or "")[:800]}\n'
-        f'relevance rationale: {a.get("llm_rationale", "")}'
-        for i, a in enumerate(articles)
-    )
+                   key_questions: dict, articles: list[dict], style: str = "") -> dict:
+    def _item(i, a):
+        # full_text / research_context come from the Yutori enrichment step (deep_dive) when on.
+        ft = f'\nfull article text (extracted): {a["full_text"][:3500]}' if a.get("full_text") else ""
+        rc = f'\nadditional research context: {a["research_context"]}' if a.get("research_context") else ""
+        return (f'[{i}] area={a["area"]} | score={a["composite_score"]} | source={a["source"]}\n'
+                f'title: {a["title"]}\nurl: {a["url"]}\n'
+                f'summary: {(a["summary"] or a["content"] or "")[:800]}{ft}{rc}\n'
+                f'relevance rationale: {a.get("llm_rationale", "")}')
+    items_txt = "\n\n".join(_item(i, a) for i, a in enumerate(articles))
     kq_txt = "\n".join(f"- {area}: {q}" for area, q in key_questions.items())
     prompt = (
         f"Organization: {org['name']} (short name: {org.get('short_name', org['name'])}) — "
         f"{org['description']} Region: {org['region']}\n\n"
         f"Key questions by area:\n{kq_txt}\n\nToday's top-ranked items:\n{items_txt}"
     )
-    text = strip_fences(client.complete(model, SYSTEM, prompt, max_tokens=max_tokens))
+    # Style guide (from config) shapes HOW it's written — tone, certainty, phrasing —
+    # without changing the JSON structure. Tunable with no code change.
+    system = SYSTEM if not style.strip() else f"{SYSTEM}\n\nWRITING STYLE (follow strictly):\n{style.strip()}"
+    text = strip_fences(client.complete(model, system, prompt, max_tokens=max_tokens))
     return json.loads(text)

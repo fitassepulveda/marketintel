@@ -1,4 +1,4 @@
-# AHP pairwise comparison of the six strategic dimensions.
+# AHP pairwise comparison of the strategic dimensions (now nine).
 #
 # Each entry "A_vs_B: v" means dimension A is v times more important than B,
 # on Saaty's 1-9 scale:
@@ -21,3 +21,10 @@ pairwise:
   financial_impact_vs_competitive_relevance: 1
   strategic_impact_vs_competitive_relevance: 1
   operational_impact_vs_proximity: 2
+  # The three newer dimensions (actionability, direct_relevance, magnitude):
+  actionability_vs_time_sensitivity: 2
+  actionability_vs_proximity: 3
+  direct_relevance_vs_operational_impact: 2
+  direct_relevance_vs_proximity: 3
+  financial_impact_vs_magnitude: 1
+  magnitude_vs_proximity: 2

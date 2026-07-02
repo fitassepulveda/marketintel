@@ -26,6 +26,9 @@ DIMENSIONS = [
     "operational_impact",     # effect on operations, capacity, compliance, care delivery
     "time_sensitivity",       # urgency — how soon a response is needed
     "proximity",              # geographic / market closeness to South Florida
+    "actionability",          # does it imply a concrete decision/response for leadership
+    "direct_relevance",       # how directly it affects UHealth specifically vs general news
+    "magnitude",              # size/materiality of the development (dollars, scale, scope)
 ]
 
 DIMENSION_DESCRIPTIONS = {
@@ -35,6 +38,9 @@ DIMENSION_DESCRIPTIONS = {
     "operational_impact": "effect on operations, capacity, compliance, or care delivery",
     "time_sensitivity": "urgency — how soon the organization should respond",
     "proximity": "geographic or market closeness to South Florida and the organization",
+    "actionability": "whether it implies a concrete decision, response, or plan for leadership (vs. passive/informational)",
+    "direct_relevance": "how directly it affects the organization specifically, vs. general industry news",
+    "magnitude": "the size or materiality of the development — dollar amounts, scale, scope",
 }
 
 SYSTEM = (
@@ -58,7 +64,7 @@ def ensure_column(con: sqlite3.Connection):
 
 
 def score_batch(client: LLMClient, model: str, org: dict,
-                articles: list[dict], batch_size: int = 10) -> list[dict]:
+                articles: list[dict], batch_size: int = 15) -> list[dict]:
     """Return a list of {dimension: score} dicts aligned with `articles`."""
     results: list[dict] = [dict.fromkeys(DIMENSIONS, 0.0) for _ in articles]
     for start in range(0, len(articles), batch_size):

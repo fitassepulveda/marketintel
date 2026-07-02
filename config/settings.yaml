@@ -431,6 +431,93 @@ briefing:
   # Top-line takeaways count
   takeaways: 5
   subject_prefix: "Market Intelligence Briefing"
+
+  # WRITING STYLE for the synthesis LLM — shapes tone/phrasing of the narrative, not the
+  # structure. Tune freely (no code change); built from leadership feedback (2026-06).
+  synthesis_style: |
+    Audience: senior UHealth executives (a strategy/consulting mindset — write so an MBB
+    director would find it rigorous and useful). Voice: measured, informative, NEUTRAL.
+    You INFORM; the reader makes the judgment calls. Not alarmist, not promotional.
+
+    1. REPORT CHANGES; DON'T JUDGE THEIR SIZE. State what changed and let the reader decide
+       how big it is. Do NOT use degree/magnitude adjectives — avoid "subtly," "slightly,"
+       "significantly," "dramatically," "minor," "major," "massive," "modest," "sharply,"
+       "notably." A competitor added ER capacity — say that, not that it "subtly shifts" or
+       "significantly threatens" anything.
+    2. NO EDITORIAL WRAP-UP SENTENCES. Do not end with an opinion like "While direct impact
+       may be limited, it's a signal of ongoing competitive growth." Give the facts and the
+       open questions; skip the summarizing judgment.
+    3. INFORM AND OFFER OPTIONS — NEVER DIRECT. Do not tell anyone what to do. Ban imperative
+       verbs aimed at people/teams: "Task," "Evaluate," "Assess," "Pursue," "Direct,"
+       "Mandate," "Instruct." Reframe as options or open questions: "UHealth might weigh
+       whether…," "Open questions:…," "One option would be…," "No action is implied by this
+       alone."
+    4. FACT DISCIPLINE — FACT-CHECK EVERYTHING. Every factual claim must trace to the provided
+       article. Do NOT introduce statistics, rankings, or superlatives that aren't in the
+       source — including UHealth self-descriptions (e.g. "top-10% AI adopter nationally,"
+       "one of the nation's largest"). Keep the focus on the external development, not on
+       UHealth marketing. If a figure/location/scale isn't given, say "not disclosed"; never
+       guess or fill it in.
+    5. ADD DEPTH LIKE A STRATEGY ADVISOR. Surface the useful follow-up questions a director
+       would ask, and answer them ONLY where the source supports it: where exactly a facility
+       is relative to UHealth's sites/catchment; whether this connects to prior related
+       developments; the magnitude if stated; who else is affected. Where the source can't
+       answer, pose it as an explicit open question rather than inventing an answer.
+    6. Plain language. Cut consultant-speak (leverage, synergy, footprint) and hedge-stacking.
+    7. BE SPECIFIC, AND DON'T DUPLICATE. The TITLE must name WHAT the thing is and WHERE
+       (e.g. "Holy Cross breaks ground on $57M free-standing ED + outpatient facility in Fort
+       Lauderdale"), not a vague "new healthcare facility." "what_happened" must add concrete
+       detail the title does NOT already state — size (sq ft, beds), the mix of services, cost,
+       and timing — and must not restate the title. Identify WHAT it is and WHERE first; that is
+       the basis for judging whether it matters to UHealth. Only state such specifics when they
+       appear in the source; if the source is just a headline, give what's known and mark the
+       rest "not disclosed" — never invent figures, sizes, dates, or locations.
+    8. DON'T CHARACTERIZE WITHOUT EVIDENCE. Don't call growth "aggressive," a player "dominant,"
+       or a move "a major push" unless the source supports it. One facility is one facility.
+    9. IMPLICATIONS CAN BE "NONE." It is fine — often correct — to say a development is not
+       expected to matter much to UHealth (given service mix / location relative to UHealth).
+       The "explore further" line is optional: if there's little to explore, say so plainly
+       rather than manufacturing a recommendation.
+
+    WORKED EXAMPLE A — a competitor opens a new ER:
+      AVOID: "This expansion signals increased capacity in a growing submarket, which UHealth
+        should monitor as it could subtly shift patient access patterns. While direct impact
+        on UHealth's core operations may be limited, it's a signal of ongoing competitive
+        growth."  AND directive watch_next like "Evaluate UM's ER footprint and pursue expansion."
+      PREFERRED:
+        why_it_matters: "Memorial opened a new ER (Red Road, Miramar, in western Broward),
+        adding emergency capacity in that submarket; the amount was not disclosed. How close
+        this is to UHealth's facilities isn't specified in the source, so any overlap with
+        UHealth's catchment is unclear."
+        watch_next: "Open questions worth checking: how much capacity this adds; whether it
+        connects to earlier Memorial expansions on file; and whether the area's growth is
+        relevant to UHealth's own siting. No action is implied by this alone."
+
+    WORKED EXAMPLE B — a new therapy (avoid directives AND unsourced claims):
+      AVOID: "Task the Sylvester and Miami Transplant Institute leadership to evaluate the
+        integration of TREGZI…"  and  "As UHealth is a top-10% adopter of AI nationally, …"
+      PREFERRED: "TREGZI (a newly cleared therapy for eligible blood-cancer patients) could be
+        relevant to UHealth's blood-cancer and transplant programs (Sylvester, Miami Transplant
+        Institute) if they treat eligible allo-HSCT patients. Open questions: how it compares
+        to current options and whether it fits existing protocols — a clinical review would answer that."
+
+    WORKED EXAMPLE C — vague competitor-facility item (title/what_happened too duplicative & vague):
+      AVOID:
+        title: "Holy Cross is investing $57 million in a new healthcare facility"
+        what_happened: "Holy Cross has broken ground on a new $57M healthcare facility, signaling
+          a significant capital investment in expanding its regional presence." (restates the title)
+        why_it_matters: "A direct competitor's AGGRESSIVE growth strategy could shift patient access
+          and service-line utilization; UM may need to assess its market penetration." (characterizes
+          without evidence; disconnected from what this actually is)
+      PREFERRED (only using facts present in the source):
+        title: "Holy Cross breaks ground on $57M free-standing ED + outpatient facility in Fort Lauderdale"
+        what_happened: "The 45,000 sq ft facility will offer 24/7 emergency care, advanced imaging,
+          and multispecialty clinics, opening Spring 2027."
+        why_it_matters: "This is Holy Cross's second free-standing ED and part of broader FSED growth
+          in South Florida. Given the service mix and its Fort Lauderdale location relative to
+          UHealth's footprint, it is not expected to have a significant impact on UHealth."
+        watch_next: "Little to explore unless UHealth is weighing free-standing-ED strategy in north
+          Broward; otherwise no action is indicated."
   # How many stories the email digest renders. Keep >= max_stories so selected stories
   # aren't truncated in the email.
   digest_top_n: 12
@@ -503,14 +590,22 @@ yutori:
   # move existing scouts (Baptist, Jackson) to the new hour.
   scout_scan_hour_local: 5
 
-  # Per-story deep-dive: after stories are selected for the briefing, launch a one-time
-  # Yutori Research task on each of the top N to gather extra context/facts/sources,
-  # which the synthesis then folds in. OFF by default — it hits a paid API (~$0.35/story)
-  # and adds minutes to the run. Bounded + fail-safe: it can never delay or break the send.
+  # Per-story enrichment (src/ingest/deep_dive.py), run on the SELECTED briefing stories:
+  #   * BROWSING (Yutori Browsing API) on EVERY reported story — an agent reads the article
+  #     and extracts full content (type, size, services, $, location, dates). ~$0.015/step,
+  #     capped by browsing_max_steps (so ~$0.05-0.18 per article).
+  #   * RESEARCH (Yutori Research API) ADDITIONALLY when llm_score >= research_min_relevance —
+  #     a broader web pass for context/fact-check. ~$0.35 per task.
+  # Bounded + fail-safe: paywalled/errored/timed-out stories are simply left as-is; this can
+  # never delay or break the send. Needs a working YUTORI_API_KEY (and enough credit).
   deep_dive:
-    enabled: false            # set true to turn on (start with a --dry-run)
-    max_stories: 3            # enrich only the top N selected stories (cost control)
-    poll_timeout_seconds: 240 # give up waiting for results after this; never stalls the send
+    enabled: true
+    browse_all: true            # Browsing on every reported story (the specificity fix)
+    research_min_relevance: 8    # ALSO run Research when the story's relevance score is >= this
+    max_browse: 12              # safety cap on browsing tasks per run
+    max_research: 5             # safety cap on research tasks per run
+    browsing_max_steps: 12      # per-article step cap (bounds Browsing cost)
+    poll_timeout_seconds: 300   # give up waiting after this; never stalls the send
     poll_interval_seconds: 10
 
 # Additional context: for each briefed story, SEARCH THE LIVE WEB (Gemini + Google Search
