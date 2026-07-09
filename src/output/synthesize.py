@@ -24,7 +24,8 @@ weight given context this analysis doesn't have.
   "takeaways": ["3-5 punchy, MBB-consultant-style bullets that FUSE the key development with its 'so what' / the recommended action — each ties an insight to what leadership should consider doing, so takeaways and actions read as one thought. Sharp, concrete, one sentence each. Use **double asterisks** to bold the 2-4 highest-impact words or phrases in each bullet (strategic bolding)."],
   "key_question_answers": {"<area>": "1-3 sentence answer to that area's key question based on today's items, or 'No significant developments today.'"},
   "stories": [
-    {"title": "...",
+    {"id": 0,
+     "title": "...",
      "topline": "REQUIRED — a ONE-SENTENCE executive topline that replaces the article headline in the report: state what happened phrased so an executive immediately grasps the IMPACT (not the publisher's headline wording). One line, ~12-22 words, concrete and specific.",
      "area": "...", "source": "...", "url": "...",
      "what_happened": "1-2 sentences",
@@ -37,6 +38,9 @@ weight given context this analysis doesn't have.
   "actions": ["recommended actions — but PREFER to fold each action directly into the matching takeaway above so the two read as one; use this list only for any action not already captured there. May be empty."]
 }
 Produce ONE story object for EACH item provided, preserving that item's exact url.
+CRITICAL: each story's "id" MUST be the integer [n] index of the source item it was built
+from, copied exactly — this is how stories are matched back to their articles (long URLs
+are easy to mistype, so the id is the ground truth).
 Do NOT drop, omit, or merge items — duplicates have already been removed upstream.
 Order stories by importance. Be concrete, executive-ready, and concise."""
 

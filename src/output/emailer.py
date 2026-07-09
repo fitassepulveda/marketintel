@@ -196,8 +196,12 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
             f'<span style="color:{MUTED};font-size:10px">&nbsp; {escape(s.get("source", ""))}</span>'
             f'{pub_html}</p>'
             f'<p style="margin:0 0 3px;font-size:13px"><b>{title_html}</b>{broken_note}</p>'
-            f'<p {fld}><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
-            f'<p {fld}><b>Why it matters:</b> {escape(s.get("why_it_matters", ""))}</p>'
+            # Defense-in-depth: never render a labeled section with no content (an empty
+            # "Why it matters:" in a sent briefing reads as a broken product).
+            + (f'<p {fld}><b>What happened:</b> {escape(s.get("what_happened") or "")}</p>'
+               if str(s.get("what_happened") or "").strip() else "")
+            + (f'<p {fld}><b>Why it matters:</b> {escape(s.get("why_it_matters") or "")}</p>'
+               if str(s.get("why_it_matters") or "").strip() else "")
             + (f'<p {fld}><b>What UHealth should consider:</b> {escape(ns)}</p>' if ns else "")
             + '</div>'
         )

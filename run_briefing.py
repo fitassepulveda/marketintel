@@ -261,6 +261,74 @@ def _flag_broken_links(stories, timeout: int = 5, max_workers: int = 8) -> None:
             s["link_ok"] = True
 
 
+def _valid_story(s: dict) -> bool:
+    """A synthesized story is usable only if every exec-facing section is present.
+    A story missing 'why it matters' / 'what to consider' must NEVER reach the email."""
+    return all(str(s.get(k) or "").strip()
+               for k in ("what_happened", "why_it_matters", "watch_next"))
+
+
+def _reconcile_stories(briefing: dict, top: list[dict]) -> list[dict]:
+    """Deterministically match every synthesized story back to its source article,
+    heal it, and drop anything unmatchable — IN PLACE on briefing["stories"].
+
+    Why: the model must echo url/title, but it mangles them (Google-News URLs are
+    ~500-char base64 blobs; titles get rewritten). Matching on url/title alone once
+    produced a duplicate, half-finished story card in a sent briefing (2026-07-09):
+    the real synthesized story failed the match (so it lost its score badge and sank
+    to the bottom), while a bare fallback stub for the "missing" article was appended
+    (and, carrying the article's 9/10 score, sorted to the TOP of the email).
+
+    Match order: the [n] id the model now echoes back -> normalized URL -> exact title.
+    For each match: restore the canonical DB url (never trust a model-echoed link),
+    fill area/source, and attach llm_score/published/fetched so the badge, date, and
+    score-ordering always work. A story that matches nothing, duplicates an
+    already-matched article, or has blank required sections is removed.
+
+    Returns the articles from `top` left with NO valid story (caller re-synthesizes
+    those, and drops them if that fails — a missing story may cost us one item, but a
+    half-baked or duplicated card cost trust, which is worse).
+    """
+    by_url = {emailer._norm_url(a["url"]): i for i, a in enumerate(top) if a.get("url")}
+    by_title = {str(a["title"]).strip().lower(): i for i, a in enumerate(top) if a.get("title")}
+    matched: set[int] = set()
+    healed: list[dict] = []
+    for s in briefing.get("stories", []):
+        idx = None
+        try:
+            i = int(s.get("id"))
+            if 0 <= i < len(top):
+                idx = i
+        except (TypeError, ValueError):
+            pass
+        if idx is None:
+            idx = by_url.get(emailer._norm_url(s.get("url", "")))
+        if idx is None:
+            idx = by_title.get(str(s.get("title", "")).strip().lower())
+        if idx is None:
+            log.warning("Reconcile: dropping unmatchable story %r", str(s.get("title", ""))[:90])
+            continue
+        if idx in matched:
+            log.warning("Reconcile: dropping duplicate story for article %s", top[idx]["id"])
+            continue
+        if not _valid_story(s):
+            log.warning("Reconcile: story for article %s has blank required sections",
+                        top[idx]["id"])
+            continue
+        a = top[idx]
+        s["id"] = idx
+        s["url"] = a["url"]                      # canonical link, never the model's echo
+        s["area"] = a.get("area") or s.get("area", "")
+        s["source"] = a.get("source") or s.get("source", "")
+        s["llm_score"] = a.get("llm_score")
+        s["published"] = a.get("published")
+        s["fetched"] = a.get("fetched")
+        matched.add(idx)
+        healed.append(s)
+    briefing["stories"] = healed
+    return [a for i, a in enumerate(top) if i not in matched]
+
+
 def _resolve_recipients(settings, spec: str) -> list[str]:
     """Resolve --recipients: a named list from briefing.recipient_lists (e.g. 'test'),
     or a comma-separated list of email addresses."""
@@ -381,7 +449,8 @@ def main():
         # No-LLM digest (used ONLY with the --no-llm dev flag, never the scheduled path).
         return {"takeaways": [a["title"] for a in items[:5]], "key_question_answers": {},
                 "stories": [{"title": a["title"], "area": a["area"], "source": a["source"],
-                             "url": a["url"],
+                             "url": a["url"], "llm_score": a.get("llm_score"),
+                             "published": a.get("published"), "fetched": a.get("fetched"),
                              "what_happened": (a.get("summary") or a.get("content") or "")[:300],
                              "why_it_matters": "", "exposure": "", "watch_next": "",
                              "coverage_label": ""} for a in items],
@@ -419,38 +488,44 @@ def main():
     else:
         briefing = _basic_briefing(top)
 
-    # Safety net: guarantee every ranked story appears, even if synthesis dropped one.
-    # Append a basic entry (from the DB row) for any top item the LLM didn't emit.
-    have = {emailer._norm_url(s.get("url", "")) for s in briefing["stories"]}
-    have |= {str(s.get("title", "")).strip().lower() for s in briefing["stories"]}
-    for a in top:
-        if emailer._norm_url(a["url"]) in have or str(a["title"]).strip().lower() in have:
-            continue
-        briefing["stories"].append({
-            "title": a["title"], "area": a["area"], "source": a["source"], "url": a["url"],
-            "what_happened": (a.get("summary") or a.get("content") or "")[:300],
-            "why_it_matters": "", "exposure": "", "watch_next": "",
-            "coverage_label": f'{a["source"]} coverage',
-        })
-
-    # Attach each story's LLM relevance score (0-10) AND its publish/fetch dates from the
-    # ranked DB rows so the briefing renderer can show a score and a Published date next to
-    # every article. Dates use the same source as the digest: the article's `published`
-    # field (RSS/Google-News pubDate, page-enriched when missing). Matched by URL, then title.
-    def _meta(a):
-        return {"llm_score": a.get("llm_score"), "published": a.get("published"),
-                "fetched": a.get("fetched")}
-    _meta_by_url = {emailer._norm_url(a["url"]): _meta(a) for a in top if a.get("url")}
-    _meta_by_title = {str(a["title"]).strip().lower(): _meta(a) for a in top if a.get("title")}
-    for s in briefing["stories"]:
-        m = (_meta_by_url.get(emailer._norm_url(s.get("url", "")))
-             or _meta_by_title.get(str(s.get("title", "")).strip().lower()) or {})
-        if s.get("llm_score") is None:
-            s["llm_score"] = m.get("llm_score")
-        if not s.get("published"):
-            s["published"] = m.get("published")
-        if not s.get("fetched"):
-            s["fetched"] = m.get("fetched")
+    # Reconcile: match every synthesized story to its article by the echoed [n] id
+    # (url/title fallback), restore canonical urls, attach score/date meta, and drop
+    # duplicates or stories with blank required sections. Replaces the old url/title
+    # "safety net", which appended half-finished stub cards when the model mangled a
+    # Google-News URL (sent-briefing bug, 2026-07-09). Runs only on the LLM path —
+    # _basic_briefing (--no-llm dev flag) is built straight from the DB rows and would
+    # fail the blank-section validation by design.
+    if use_llm:
+        missing = _reconcile_stories(briefing, top)
+        if missing:
+            # One targeted retry, synthesizing ONLY the missing items (a fresh, smaller
+            # prompt — temp-0 on the identical prompt would just repeat the failure).
+            log.warning("Synthesis left %d item(s) without a valid story — retrying those: %s",
+                        len(missing), "; ".join(str(a["title"])[:70] for a in missing))
+            try:
+                extra = synthesize.build_briefing(
+                    client, models["synthesis"],
+                    cfg["settings"]["llm"]["max_tokens_synthesis"],
+                    cfg["settings"]["org"], cfg["settings"]["key_questions"], missing,
+                    style=cfg["settings"]["briefing"].get("synthesis_style", ""),
+                )
+                still_missing = _reconcile_stories(extra, missing)
+                briefing["stories"].extend(extra["stories"])
+            except Exception as exc:
+                log.warning("Retry synthesis failed (%s)", exc)
+                still_missing = missing
+            if still_missing:
+                # Drop rather than send a degraded card. Removing them from `top` also
+                # keeps them OUT of mark_briefed, so they stay eligible for the next run.
+                log.error("Dropping %d story(ies) that could not be synthesized (they remain "
+                          "eligible next run): %s", len(still_missing),
+                          "; ".join(str(a["title"])[:70] for a in still_missing))
+                gone = {a["id"] for a in still_missing}
+                top = [a for a in top if a["id"] not in gone]
+        if not top:
+            log.error("Reconciliation left no publishable stories — NOT sending; failing so "
+                      "the watchdog alerts and the next run retries.")
+            raise SystemExit(1)
 
     # Best-effort link-health check so the renderer can flag any dead links (fail-safe).
     try:

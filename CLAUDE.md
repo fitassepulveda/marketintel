@@ -12,6 +12,18 @@ and emails an HTML digest of the top stories each weekday morning.
 ## Status (as of last session)
 
 - **Live and automated.** Validated end-to-end; runs send real email.
+- **Story reconciliation added (2026-07-09).** The 07-09 briefing shipped a duplicate,
+  half-baked story card at the top (raw headline, empty "Why it matters"): the model
+  mangled a ~500-char Google-News URL and rewrote the title, so the old url/title
+  "safety net" both appended a bare stub for the "missing" article AND failed to attach
+  the score/date to the real synthesized story (which then sorted last). Fix: synthesis
+  now echoes each item's `[n]` index as `"id"`; `_reconcile_stories()` in
+  `run_briefing.py` matches stories back by id (url/title fallback), restores the
+  canonical DB url, attaches score/date meta, rejects duplicates and blank-section
+  stories, re-synthesizes only the missing items once, and DROPS (never stubs) anything
+  still unsalvageable — dropped items stay unbriefed so they retry next run. The
+  renderer also skips empty labeled sections. Regression test:
+  `python3 scripts/test_reconcile.py` (no network/DB needed).
 - **Scheduling is external-cron-driven (changed 2026-06-17).** GitHub's own `schedule:`
   cron proved unreliable — it silently dropped the daily run on 2026-06-16 and 2026-06-17
   (Actions tab showed no run; last was 06-15). The **reliable trigger is now an external
@@ -65,7 +77,9 @@ Entry point: `run_briefing.py`. Flags: `--dry-run` (build + save, don't send),
 
 ## Code map
 
-- `run_briefing.py` — orchestrates: `ingest()` → `prioritize()` → synthesis → digest/send.
+- `run_briefing.py` — orchestrates: `ingest()` → `prioritize()` → synthesis →
+  `_reconcile_stories()` (id-based story↔article matching, canonical urls, meta attach,
+  dupe/blank rejection, retry-then-drop for missing) → digest/send.
   Key helpers: `_is_recent()` (publish-date window), `_parse_dt()`, `_send_html()`
   (dry-run/SMTP-guarded send), quiet-day branch when `prioritize()` returns nothing.
 - `src/config.py` — loads `config/*.yaml` + `.env`. `config.env(key, required=)`.
