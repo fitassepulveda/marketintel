@@ -53,6 +53,9 @@ BROWSE_TASK = (
 RESEARCH_SCHEMA = {
     "type": "object",
     "properties": {
+        "institution": {"type": "string",
+                        "description": "the SPECIFIC institution/organization the article is about, "
+                                       "with city/state — or 'unidentified' if the article doesn't say"},
         "additional_context": {"type": "string",
                                "description": "2-4 sentences of background / related developments"},
         "key_facts": {"type": "array", "items": {"type": "string"}},
@@ -110,50 +113,38 @@ def _get(c: dict, path: str) -> dict | None:
 
 
 def _research_query(story: dict, org: dict) -> str:
+    """Built AFTER the browsing phase, so summary/extracted_facts hold the article's real
+    content (not a bare Google-News headline) and the agent is anchored to the source URL.
+    A headline-only query once sent the research agent off with no institution name at all
+    — 'Health system opens stand-alone ER in Broward' — producing fundamentally wrong
+    context (2026-07-09)."""
+    facts = ""
+    if story.get("extracted_facts"):
+        facts = ("\nKey facts already extracted from the article: "
+                 + "; ".join(str(f) for f in story["extracted_facts"][:8]))
     return (
-        f"Research additional context for this news item relevant to {org['name']} "
-        f"({org.get('region','')}). Story: \"{story.get('title','')}\". "
-        f"Summary: {(story.get('summary') or story.get('content') or '')[:500]}\n\n"
-        "Find related/prior developments, relevant figures and dates, and verify key claims. "
-        "Prefer primary sources from the last 30 days."
+        f"STEP 1 — read the source article first and base everything on what it actually "
+        f"reports: {story.get('url','')}\n"
+        f"Article title: \"{story.get('title','')}\"\n"
+        f"Article summary: {(story.get('summary') or story.get('content') or '')[:800]}{facts}\n\n"
+        f"STEP 2 — identity check before researching: establish exactly WHICH institution "
+        f"the article is about (name + city/state). Many health systems share names across "
+        f"regions (Baptist Health South Florida is NOT Baptist Health Jacksonville or Baptist "
+        f"Health Kentucky; Jackson Health System in Miami is NOT Jackson Hospital in Alabama; "
+        f"Mount Sinai Medical Center Miami Beach is NOT Mount Sinai New York). If the article "
+        f"does not clearly identify the institution or event, return "
+        f"institution='unidentified' and say so in additional_context — do NOT guess or "
+        f"substitute a similar-sounding organization.\n\n"
+        f"STEP 3 — research additional context relevant to {org['name']} "
+        f"({org.get('region','')}): related/prior developments, relevant figures and dates; "
+        f"verify the article's key claims. Prefer primary sources from the last 30 days. "
+        f"Cite your sources."
     )
 
 
-def enrich_stories(stories: list[dict], cfg: dict) -> dict:
-    """Browse every reported story; research the high-relevance ones. Mutates stories
-    in place (adds full_text / extracted_facts / research_context). Never raises.
-    Returns {'browsed': n, 'researched': n}."""
-    c = _cfg(cfg)
-    if not c["enabled"] or not os.environ.get("YUTORI_API_KEY", "").strip():
-        return {"browsed": 0, "researched": 0}
-    org = cfg["settings"]["org"]
-    user_tz = org.get("timezone", "America/New_York")
-
-    browse_targets = (stories[: c["max_browse"]] if c["browse_all"] else [])
-    research_targets = [s for s in stories
-                        if float(s.get("llm_score") or 0) >= c["research_min_relevance"]][: c["max_research"]]
-
-    pending: dict = {}  # task_id -> (story, kind)
-    for s in browse_targets:
-        if not s.get("url"):
-            continue
-        tid = _post(c, BROWSE_CREATE, {
-            "task": BROWSE_TASK, "start_url": s["url"],
-            "max_steps": c["browsing_max_steps"], "agent": "navigator-n1.5-latest",
-            "output_schema": BROWSE_SCHEMA})
-        if tid:
-            pending[tid] = (s, "browse")
-    for s in research_targets:
-        tid = _post(c, RESEARCH_CREATE, {
-            "query": _research_query(s, org), "output_schema": RESEARCH_SCHEMA,
-            "user_timezone": user_tz, "skip_email": True})
-        if tid:
-            pending[tid] = (s, "research")
-    if not pending:
-        return {"browsed": 0, "researched": 0}
-    log.info("deep-dive: launched %d browsing + %d research tasks",
-             len(browse_targets), len(research_targets))
-
+def _poll(c: dict, pending: dict) -> tuple[int, int]:
+    """Poll launched tasks until done or deadline; attach results to their stories.
+    Returns (browsed, researched) counts. Never raises."""
     browsed = researched = 0
     deadline = time.time() + c["poll_timeout_seconds"]
     while pending and time.time() < deadline:
@@ -183,7 +174,17 @@ def enrich_stories(stories: list[dict], cfg: dict) -> dict:
                     story["extracted_facts"] = sr["key_facts"]
                 browsed += 1
             elif kind == "research" and sr:
-                bits = [sr.get("additional_context", "")]
+                # An agent that couldn't pin down the institution is explicitly told to say
+                # so — don't feed that non-answer to synthesis as if it were context.
+                inst = str(sr.get("institution") or "").strip().lower()
+                if inst == "unidentified":
+                    log.warning("deep-dive research could not identify the institution for "
+                                "%r — context discarded", str(story.get("title", ""))[:70])
+                    continue
+                bits = []
+                if sr.get("institution"):
+                    bits.append(f'[About: {sr["institution"]}]')
+                bits.append(sr.get("additional_context", ""))
                 if sr.get("implication"):
                     bits.append("Implication: " + sr["implication"])
                 if sr.get("sources"):
@@ -193,5 +194,56 @@ def enrich_stories(stories: list[dict], cfg: dict) -> dict:
     if pending:
         log.warning("deep-dive: %d task(s) unfinished at the %ds deadline — skipped",
                     len(pending), c["poll_timeout_seconds"])
+    return browsed, researched
+
+
+def enrich_stories(stories: list[dict], cfg: dict) -> dict:
+    """Browse every reported story, THEN research the high-relevance ones. Mutates
+    stories in place (adds full_text / extracted_facts / research_context). Never raises.
+    Returns {'browsed': n, 'researched': n}.
+
+    The phases are SEQUENTIAL on purpose (changed 2026-07-09): research queries are
+    built from the browse-enriched summary + extracted facts, so the research agent
+    starts from the article's actual content — not a bare Google-News headline that
+    doesn't even name the institution. Costs one extra poll cycle of wall time; the
+    scheduled run has the headroom, and grounded research is the whole point."""
+    c = _cfg(cfg)
+    if not c["enabled"] or not os.environ.get("YUTORI_API_KEY", "").strip():
+        return {"browsed": 0, "researched": 0}
+    org = cfg["settings"]["org"]
+    user_tz = org.get("timezone", "America/New_York")
+
+    # ---- Phase 1: BROWSE (read each article page) -------------------------------------
+    browsed = 0
+    browse_targets = (stories[: c["max_browse"]] if c["browse_all"] else [])
+    pending: dict = {}  # task_id -> (story, kind)
+    for s in browse_targets:
+        if not s.get("url"):
+            continue
+        tid = _post(c, BROWSE_CREATE, {
+            "task": BROWSE_TASK, "start_url": s["url"],
+            "max_steps": c["browsing_max_steps"], "agent": "navigator-n1.5-latest",
+            "output_schema": BROWSE_SCHEMA})
+        if tid:
+            pending[tid] = (s, "browse")
+    if pending:
+        log.info("deep-dive phase 1: launched %d browsing task(s)", len(pending))
+        browsed, _ = _poll(c, pending)
+
+    # ---- Phase 2: RESEARCH (queries built from the now-enriched stories) --------------
+    researched = 0
+    research_targets = [s for s in stories
+                        if float(s.get("llm_score") or 0) >= c["research_min_relevance"]][: c["max_research"]]
+    pending = {}
+    for s in research_targets:
+        tid = _post(c, RESEARCH_CREATE, {
+            "query": _research_query(s, org), "output_schema": RESEARCH_SCHEMA,
+            "user_timezone": user_tz, "skip_email": True})
+        if tid:
+            pending[tid] = (s, "research")
+    if pending:
+        log.info("deep-dive phase 2: launched %d research task(s)", len(pending))
+        _, researched = _poll(c, pending)
+
     log.info("deep-dive: enriched %d browsed / %d researched", browsed, researched)
     return {"browsed": browsed, "researched": researched}
