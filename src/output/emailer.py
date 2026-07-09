@@ -202,6 +202,8 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
                if str(s.get("what_happened") or "").strip() else "")
             + (f'<p {fld}><b>Why it matters:</b> {escape(s.get("why_it_matters") or "")}</p>'
                if str(s.get("why_it_matters") or "").strip() else "")
+            + (f'<p {fld}><b>Additional context:</b> {escape(s.get("context") or "")}</p>'
+               if str(s.get("context") or "").strip() else "")
             + (f'<p {fld}><b>What UHealth should consider:</b> {escape(ns)}</p>' if ns else "")
             + '</div>'
         )

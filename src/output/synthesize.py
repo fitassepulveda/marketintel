@@ -28,15 +28,20 @@ weight given context this analysis doesn't have.
      "title": "...",
      "topline": "REQUIRED — a ONE-SENTENCE executive topline that replaces the article headline in the report: state what happened phrased so an executive immediately grasps the IMPACT (not the publisher's headline wording). One line, ~12-22 words, concrete and specific.",
      "area": "...", "source": "...", "url": "...",
-     "what_happened": "1-2 sentences",
+     "what_happened": "1-2 sentences. PRESERVE the concrete specifics the item provides — square footage, bed counts, dollar amounts, locations, dates, named parties. Never drop a hard figure for smoother prose; executives read for the numbers.",
      "why_it_matters": "REQUIRED, never blank: 1-2 sentences on the strategic significance to the organization (refer to it by its short name) — why leadership should care. FOLD IN the specific institutional risk OR opportunity this creates (these concepts overlap, so combine them here rather than separating them out). Keep it measured and hedged, not alarmist (see TONE above) — this is a plausible external read, not a verdict on internal impact.",
      "exposure": "OPTIONAL — leave as an empty string \"\". The institutional risk/opportunity is now folded into why_it_matters; do not duplicate it here.",
      "watch_next": "REQUIRED — WHAT UHEALTH SHOULD CONSIDER (rendered under that label, so do NOT restate the label in your text). Frame it as an OPPORTUNITY or CONSIDERATION, not a precise directive — exploratory and suggestive rather than declarative (e.g. 'Evaluate opportunities to enhance UHealth's community-benefit impact and awareness across social-determinants-of-health areas.'). It may be a thing to watch (with a rough time horizon) or 'no action needed — monitor only' when that fits. One sentence, specific to UHealth but not over-precise.",
+     "context": "OPTIONAL — include ONLY when the item provides 'additional research context': 1-2 sentences of its most decision-useful background (prior/related developments, scale comparisons, market position), with specifics. Empty string otherwise. Do not repeat what_happened.",
      "coverage_label": "a short descriptive label for the source link, e.g. 'STAT reporting on pharma job shifts'"}
   ],
   "watch": ["developments to watch in coming days/weeks/months"],
   "actions": ["recommended actions — but PREFER to fold each action directly into the matching takeaway above so the two read as one; use this list only for any action not already captured there. May be empty."]
 }
+When an item includes 'additional research context' or 'key facts', you MUST put them to
+work: fold their most relevant specifics into what_happened, why_it_matters, watch_next,
+and the context field. That material was commissioned specifically to sharpen this
+briefing — a story that ignores it and paraphrases the headline is a failure.
 Produce ONE story object for EACH item provided, preserving that item's exact url.
 CRITICAL: each story's "id" MUST be the integer [n] index of the source item it was built
 from, copied exactly — this is how stories are matched back to their articles (long URLs
@@ -48,12 +53,17 @@ Order stories by importance. Be concrete, executive-ready, and concise."""
 def build_briefing(client: LLMClient, model: str, max_tokens: int, org: dict,
                    key_questions: dict, articles: list[dict], style: str = "") -> dict:
     def _item(i, a):
-        # full_text / research_context come from the Yutori enrichment step (deep_dive) when on.
+        # full_text / extracted_facts / research_context come from the Yutori enrichment
+        # step (deep_dive) when on. extracted_facts carries the discrete figures (sq ft,
+        # beds, dollar amounts, dates) — pass it explicitly: full_text is truncated and
+        # summaries vary, so this list is the reliable channel for hard numbers.
         ft = f'\nfull article text (extracted): {a["full_text"][:3500]}' if a.get("full_text") else ""
+        kf = (f'\nkey facts (extracted from the article — treat as reliable): '
+              + "; ".join(str(f) for f in a["extracted_facts"][:10])) if a.get("extracted_facts") else ""
         rc = f'\nadditional research context: {a["research_context"]}' if a.get("research_context") else ""
         return (f'[{i}] area={a["area"]} | score={a["composite_score"]} | source={a["source"]}\n'
                 f'title: {a["title"]}\nurl: {a["url"]}\n'
-                f'summary: {(a["summary"] or a["content"] or "")[:800]}{ft}{rc}\n'
+                f'summary: {(a["summary"] or a["content"] or "")[:800]}{kf}{ft}{rc}\n'
                 f'relevance rationale: {a.get("llm_rationale", "")}')
     items_txt = "\n\n".join(_item(i, a) for i, a in enumerate(articles))
     kq_txt = "\n".join(f"- {area}: {q}" for area, q in key_questions.items())
