@@ -16,6 +16,9 @@ Usage (on your Mac, venv active; needs GEMINI_API_KEY + YUTORI_API_KEY in .env):
   python3 scripts/test_yutori_value.py               # full A/B run  (~$0.50 Yutori cost)
   python3 scripts/test_yutori_value.py --pick-only   # just show which article would be used
   python3 scripts/test_yutori_value.py --url URL     # override: test a specific stored article
+  python3 scripts/test_yutori_value.py --send        # also email the comparison to the
+                                                     # feedback contacts (wef28, fxs1141)
+  python3 scripts/test_yutori_value.py --send --to a@x.com,b@y.com   # custom recipients
 """
 from __future__ import annotations
 
@@ -99,8 +102,9 @@ def compare_html(art, html_a, html_b, enriched, date_h) -> str:
             + "".join(f"<li>{escape(str(f))}</li>" for f in facts) + "</ul>") if facts else "")
         + (f'<p style="font-family:Arial;font-size:12px"><b>Research context:</b> '
            f'{escape(enriched.get("research_context") or "(none returned)")}</p>')
-        + (f'<details style="font-family:Arial;font-size:11px;color:#555"><summary>Full text</summary>'
-           f'<p>{escape((enriched.get("full_text") or "")[:6000])}</p></details>'
+        + (f'<p style="font-family:Arial;font-size:11px;color:#555;background:#F7F9FC;'
+           f'padding:8px"><b>Full-text excerpt:</b> '
+           f'{escape((enriched.get("full_text") or "")[:1200])}…</p>'
            if enriched.get("full_text") else "")
     )
     return (
@@ -120,6 +124,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default=None, help="test a specific stored article by URL")
     ap.add_argument("--pick-only", action="store_true", help="show the chosen article and exit")
+    ap.add_argument("--send", action="store_true",
+                    help="email the comparison to --to (default: the feedback contacts)")
+    ap.add_argument("--to", default=",".join(emailer.FEEDBACK_CONTACTS),
+                    help="comma-separated recipients for --send")
     args = ap.parse_args()
 
     cfg = config.load_all()
@@ -158,7 +166,8 @@ def main():
     (out / f"_yutori_test_{tag}_B_yutori.html").write_text(html_b, encoding="utf-8")
 
     cmp_path = out / f"_yutori_test_{tag}_compare.html"
-    cmp_path.write_text(compare_html(art, html_a, html_b, art_b, date_h), encoding="utf-8")
+    cmp_html = compare_html(art, html_a, html_b, art_b, date_h)
+    cmp_path.write_text(cmp_html, encoding="utf-8")
     (out / f"_yutori_test_{tag}.json").write_text(
         json.dumps({"article": {k: art.get(k) for k in
                                 ("title", "url", "source", "llm_score", "composite_score")},
@@ -167,6 +176,20 @@ def main():
                     "A_rss": brief_a["stories"][0], "B_yutori": brief_b["stories"][0]},
                    indent=2), encoding="utf-8")
     print(f"\nDone. Open:\n  {cmp_path}\n(A/B story cards + raw JSON saved alongside.)")
+
+    if args.send:
+        recipients = [e.strip() for e in args.to.split(",") if e.strip()]
+        if not all(config.env(k, required=False) for k in
+                   ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "EMAIL_FROM")):
+            sys.exit("--send requested but SMTP_* / EMAIL_FROM not set in .env — not sent.")
+        emailer.send(
+            cmp_html, f"[TEST] Yutori value test (A/B, one article) — {date_h}",
+            {"host": config.env("SMTP_HOST"), "port": config.env("SMTP_PORT"),
+             "user": config.env("SMTP_USER"), "password": config.env("SMTP_PASS"),
+             "from": config.env("EMAIL_FROM"), "to": recipients},
+            subtype="html",
+        )
+        print(f"Comparison emailed to {', '.join(recipients)}")
 
 
 if __name__ == "__main__":
