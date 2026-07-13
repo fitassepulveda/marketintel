@@ -150,6 +150,16 @@ briefing:
       it is the local competitor — treat it as unverified and score it low (2-3). SOLE EXCEPTION:
       if the source is the competitor's OWN website (a Yutori scout on their newsroom, e.g.
       jacksonhealth.org), the location is already verified and this check is satisfied.
+      35-MILE PPS-EXEMPT BAND (added 2026-07-13, strategy-team direction — important). UHealth
+      operates under a 35-mile PPS-exempt band measured from its main Miami hub in the Miami
+      Health District (UHealth Tower, adjacent to Jackson Memorial). Competitor moves WITHIN that
+      band matter MORE than moves outside it. Rough geography: all of Miami-Dade and most of
+      Broward (Fort Lauderdale, Hollywood, Plantation; up to about Pompano Beach/Deerfield Beach)
+      are INSIDE the band; Palm Beach County (Boca Raton, West Palm Beach, Jupiter) and anything
+      farther are OUTSIDE. A competitor move outside the band is still a priority — do NOT drop it —
+      but score it a notch lower than the same move inside the band, and ALWAYS state in the
+      rationale that it is outside the 35-mile PPS-exempt band (e.g. "note: West Palm Beach is
+      outside the 35-mile PPS-exempt band"), so the briefing carries that flag.
     - FEDERAL/STATE FUNDING & POLICY for academic medicine: NIH / research-grant funding changes
       (UHealth runs ~$178.8M NIH), Medicare/Medicaid reimbursement, 340B, graduate medical
       education, academic-medical-center policy. Big financial/strategic exposure — score high.
@@ -213,7 +223,34 @@ briefing:
     (e.g. a global pandemic agreement, a region-wide health emergency) may score high even if
     "general," because leadership must be aware of it.
 
-    DAILY-REVIEW CALIBRATION (real strategy-team notes, 2026-06-29) — newest; apply this judgment:
+    DAILY-REVIEW CALIBRATION (real strategy-team notes, 2026-07-13) — newest; apply this judgment:
+    - "HCA Florida Palms West breaks ground on freestanding ER in West Palm Beach" -> 9 WITH a
+      rationale note: in-region competitor capacity expansion, but West Palm Beach is OUTSIDE the
+      35-mile PPS-exempt band — flag that in the rationale (see the 35-MILE BAND rule above).
+    - "Pharmacy leaders are done waiting" -> 8: integrated-pharmacy / pharmacy-workforce — a
+      current UHealth project; 8 confirmed correct.
+    - "ACO REACH participants generated nearly $1B in 2024 savings (CMS)" -> 7: confirmed good —
+      value-based-care economics with strategy relevance.
+    - "AI note-taking helps clinicians reclaim patient time" -> 7: confirmed good — adoptable AI.
+    - "Rejo P. Cherian, M.D., joins Marcus Neuroscience Institute" -> 6: a single physician hire
+      at an in-region competitor is too narrow, no clear UHealth implication — individual hires
+      are mid at best, below institutional moves.
+    - "Flipping the script on payer denials and downcoding" -> 6 as a generic how-to; would be
+      7-8 IF a NAMED health system actually did it (actionability comes from a real precedent to
+      study, not from advice). Named-system precedent = higher; think piece = mid.
+    - "Florida Coast Medical Center advances orthopedic surgery with OrthoGrid Hip AI" -> 5: NOT
+      a true South Florida competitor — 6 was generous; vendor-adoption news at a non-competitor
+      is slow-day at most.
+    - "Healthcare ransomware attacks up 14%" -> 3: cybersecurity is not a strategy-team function
+      (reaffirms the existing cybersecurity rule — keep these low).
+    - "Indiana hospital credits expanded services to employee health insurance switch" -> 2:
+      out-of-state insurance/policy mechanics don't transfer — healthcare policy and insurance
+      differ by state; not relevant to UHealth.
+    - "Memorial Hermann exits commercial insurance business" -> 2-3: Memorial Hermann is HOUSTON
+      (another "Memorial" name collision) — UHealth neither competes with nor relies on it; not
+      actionable or strategically relevant.
+
+    DAILY-REVIEW CALIBRATION (real strategy-team notes, 2026-06-29) — apply this judgment:
     - "Sword Health contracted to provide AI-supported physical therapy" -> 8: the scale and the
       precedent it sets for healthcare institutions make this adoptable/precedent-setting AI.
     - "HHS details takeaways from its sweeping AI request for information" -> 7: signals incoming

@@ -4,9 +4,32 @@ Every prioritization change made to the Market Intelligence briefing, with what 
 where it lives. Most scoring behavior is in `config/settings.yaml → briefing.relevance_guidance`
 (no code change needed to tune); selection mechanics are in `run_briefing.py` + `config/`.
 
-_Last updated: 2026-06-29._
+_Last updated: 2026-07-13._
 
 ---
+
+## 0. 2026-07-13 calibration (strategy-team review of the 7/13 run)
+
+Driven by feedback on `feedback_2026-07-13.xlsx`. All in `briefing.relevance_guidance`.
+
+- **NEW — 35-mile PPS-exempt band (the key change).** Competitor moves WITHIN the ~35-mile
+  PPS-exempt band around UHealth's Miami campus matter more than moves outside it. Roughly:
+  Miami-Dade + most of Broward inside; Palm Beach County (West Palm Beach, Jupiter, Boca Raton)
+  and beyond outside. Outside-band moves are still prioritized (scored a notch lower) and the
+  rationale must flag "outside the 35-mile PPS-exempt band" so the note carries into the
+  briefing. (Ex: HCA Palms West freestanding ER in West Palm Beach → 9 with the note.)
+- **Single physician hires at competitors → ~6.** Too narrow, no clear UHealth implication;
+  below institutional moves. (Marcus Neuroscience neurologist hire → 6.)
+- **Payer-denial/downcoding pieces: precedent > advice.** 7-8 only if a NAMED health system
+  actually did it; generic how-to stays 6.
+- **Non-competitor Florida hospitals' vendor adoptions → ~5.** (Florida Coast + OrthoGrid → 5;
+  6 was generous.)
+- **Reinforced low/exclude:** cybersecurity/ransomware trend pieces (→ 3, not a strategy-team
+  function); out-of-state insurance/policy mechanics that don't transfer across state lines
+  (Indiana insurance switch → 2); out-of-region systems UHealth neither competes with nor relies
+  on — incl. the Memorial Hermann (Houston) "Memorial" name collision (→ 2-3).
+- **Confirmed correct:** integrated pharmacy at 8, ACO REACH savings at 7, adoptable AI
+  note-taking at 7.
 
 ## 0. 2026-06-29 calibration (strategy-team review of the 6/29 run)
 
