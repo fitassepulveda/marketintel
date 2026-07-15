@@ -4,9 +4,33 @@ Every prioritization change made to the Market Intelligence briefing, with what 
 where it lives. Most scoring behavior is in `config/settings.yaml → briefing.relevance_guidance`
 (no code change needed to tune); selection mechanics are in `run_briefing.py` + `config/`.
 
-_Last updated: 2026-07-13._
+_Last updated: 2026-07-15._
 
 ---
+
+## 0. 2026-07-15 calibration (strategy-team review of the 7/15 run)
+
+Driven by feedback on `feedback_2026-07-15.xlsx`. All in `briefing.relevance_guidance`.
+
+- **NEW — HCA corporate news is competitor news.** HCA Healthcare operates HCA Florida in
+  UHealth's region, so HCA corporate-level news (earnings, forecasts, coverage-mix pressure,
+  system strategy) is classified and scored as SOUTH FLORIDA COMPETITIVE intel with the
+  competitor lens, not generic national policy. (HCA 2026 earnings-forecast cut → 7, right
+  score, wrong area.)
+- **NEW — early pilots/trials cap at ~6.** Tech/device/wearable being tested at a handful of
+  clinics — especially out-of-region — is not hospital adoption; no geography + no at-scale
+  adoption = max 6. High still requires peer-system deployment or regulatory clearance.
+  (Whoop joint-replacement trial at 3 California clinics → 6, was 7.)
+- **NEW — two trend-topic exceptions score a strong 6** (override "general trends are low" for
+  these only): hospital **M&A market/trend reports** (M&A is a strategy the team actively
+  explores — good slow-day material; Q2 M&A report → 6, was 5) and **market-level digital-health
+  funding roundups** ($7.4B funding report → 6, was 5; a single startup's round stays 3-4).
+- **Reinforced low/exclude:** patient-experience awareness pieces ("patients stuck in red
+  tape" → 2-3, was 5 — do not surface); generic big-tech healthcare-AI initiatives with nothing
+  adoptable (Google healthcare-AI evidence base → 3-4, was 5).
+- **Confirmed correct:** single physician hires at competitors → 6 (Baptist Miami Neuroscience,
+  Holy Cross — "key hiring sure, but physician hiring so 6 is on point"); insurers suing CMS
+  over MA stars → 5; payer-denials how-to → 6 contingent on actionability (precedent > advice).
 
 ## 0. 2026-07-13 calibration (strategy-team review of the 7/13 run)
 

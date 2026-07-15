@@ -138,6 +138,12 @@ briefing:
       Nicklaus. A competitor's expansion is high; a leadership change at one of them is mid (5-6).
       The SAME event at an OUT-OF-REGION system (Essentia, Franciscan Alliance, etc.) is NOISE
       (1-2) — UHealth doesn't compete with them.
+      HCA CORPORATE NEWS IS COMPETITOR NEWS (added 2026-07-15, strategy-team direction): HCA
+      Healthcare operates HCA Florida hospitals in UHealth's region, so HCA news at the CORPORATE
+      level (earnings, forecasts, coverage-mix pressure, systemwide strategy shifts) is SOUTH
+      FLORIDA COMPETITIVE intelligence, not generic national policy — classify and score it with
+      the competitor lens (what does this imply for HCA Florida's local posture?), not the
+      "someone else's earnings" lens.
       VERIFY LOCATION — NAME COLLISIONS (critical). Many competitor names are NOT unique to South
       Florida: "Jackson Hospital" in Montgomery, ALABAMA is a DIFFERENT institution from Jackson
       Health System / Jackson Memorial in Miami; "Baptist Health" exists in KY/TN/AL/TX (only
@@ -186,6 +192,11 @@ briefing:
       HIGH (8) — clearance makes it adoptable now; a startup AI FUNDING ROUND with no regulatory or
       adoptable movement is mid/low (~5). AI REGULATION / GOVERNANCE that UHealth must navigate as
       it builds its own AI implementation pathways is relevant (~7) even when general.
+      EARLY PILOTS / TRIALS CAP AT ~6 (added 2026-07-15): a device/tech/wearable being TESTED or
+      TRIALED at a handful of clinics — especially out-of-region — is not hospital adoption yet.
+      No geographic relevance + no at-scale adoption = cap at 6 (e.g. a wearable tested across 3
+      California clinics). The triggers for scoring high remain real deployment by a peer health
+      system or regulatory clearance making it adoptable now.
     - INTEGRATED PHARMACY (current UHealth project): UHealth is actively exploring an
       integrated-pharmacy model, so stories on integrated-pharmacy models, pharmacy-workforce
       build-out, or peers doing the same score HIGH (~8). Distinct from PBM/drug-pricing (NOT a
@@ -195,7 +206,12 @@ briefing:
 
     MIDDLE / "slow-day" tier (5-6): solid but general or non-urgent — a competitor leadership
     change, an early-stage policy proposal, a single FDA approval. Worth including only when
-    nothing more actionable is available that day. ALSO HERE — "keep an eye on" items, good for
+    nothing more actionable is available that day. ALSO A STRONG 6 (added 2026-07-15, overrides
+    the "general market trends are low" rule for these two topics only): (a) hospital M&A
+    MARKET/TREND reports — M&A is a strategy the team is ACTIVELY EXPLORING, so even general
+    M&A-climate coverage is decent slow-day material; (b) MARKET-LEVEL digital-health
+    funding/investment roundups (e.g. "digital health funding hits $X billion") — a useful
+    market signal, unlike a SINGLE startup's funding round, which stays 3-4 per the rule above. ALSO HERE — "keep an eye on" items, good for
     exec AWARENESS on a slow day but NOT high scorers and NOT strategic vectors: healthcare
     RESEARCH funding/policy color and general research/clinical-trial-policy items (relevant to
     UHealth's research arm but mid for a STRATEGY audience; ~5). Surface when quiet; not high on
@@ -207,6 +223,11 @@ briefing:
     Score 1-3 — near-zero strategic value even though healthcare-related: patient-facing
     human-interest / cancer-survivorship / wellness pieces, and routine local public-health
     warnings (e.g. a state opioid advisory). These do nothing for strategic direction.
+    ALSO 2-3, do not surface (added 2026-07-15): PATIENT-EXPERIENCE AWARENESS pieces on how
+    policy/plan changes affect patients ("patients stuck in red tape") — pure awareness with
+    nothing for a strategy team; and generic BIG-TECH HEALTHCARE-AI INITIATIVES with nothing
+    adoptable (e.g. "Google wants to build an evidence base for healthcare AI") — these fail
+    the AI gate and are vendor/press positioning, not intelligence.
     Score 1-2 — RANKINGS / LISTICLES ("47 health systems with strong finances", "273 hospitals
     with the lowest readmissions", "top 10 systems by revenue") and GENERIC OPERATIONAL
     THOUGHT-LEADERSHIP / management how-to / culture pieces (procurement best practices, "crisis
@@ -223,21 +244,27 @@ briefing:
     (e.g. a global pandemic agreement, a region-wide health emergency) may score high even if
     "general," because leadership must be aware of it.
 
-    DAILY-REVIEW CALIBRATION (real strategy-team notes, 2026-07-13) — newest; apply this judgment:
-    - "HCA Florida Palms West breaks ground on freestanding ER in West Palm Beach" -> 9 WITH a
-      rationale note: in-region competitor capacity expansion, but West Palm Beach is OUTSIDE the
-      35-mile PPS-exempt band — flag that in the rationale (see the 35-MILE BAND rule above).
-    - "Pharmacy leaders are done waiting" -> 8: integrated-pharmacy / pharmacy-workforce — a
-      current UHealth project; 8 confirmed correct.
-    - "ACO REACH participants generated nearly $1B in 2024 savings (CMS)" -> 7: confirmed good —
-      value-based-care economics with strategy relevance.
-    - "AI note-taking helps clinicians reclaim patient time" -> 7: confirmed good — adoptable AI.
-    - "Rejo P. Cherian, M.D., joins Marcus Neuroscience Institute" -> 6: a single physician hire
-      at an in-region competitor is too narrow, no clear UHealth implication — individual hires
-      are mid at best, below institutional moves.
-    - "Flipping the script on payer denials and downcoding" -> 6 as a generic how-to; would be
-      7-8 IF a NAMED health system actually did it (actionability comes from a real precedent to
-      study, not from advice). Named-system precedent = higher; think piece = mid.
+    DAILY-REVIEW CALIBRATION (real strategy-team notes, 2026-07-15) — newest; apply this judgment:
+    - "HCA cuts 2026 earnings forecast on insurance coverage losses" -> 7 confirmed, BUT this is
+      SOUTH FLORIDA COMPETITIVE intel, not national policy — HCA runs HCA Florida hospitals here;
+      HCA corporate news gets the competitor lens (see HCA CORPORATE NEWS rule above).
+    - "Whoop tests wearable platform in joint replacement recovery" -> 6, NOT 7: a trial across 3
+      California clinics — no geographic relevance, no actual hospital adoption yet; early
+      pilots/trials cap at 6 (see EARLY PILOTS rule above).
+    - "Hospital M&A sustains momentum in Q2" -> strong 6 (was scored 5): the team is actively
+      exploring M&A, so general M&A-climate coverage is decent slow-day material.
+    - "Digital health funding hits $7.4B in 2026" -> 6 on a slow day (was scored 5): market-level
+      funding roundup = useful signal, though not actionable; a single startup's round stays 3-4.
+    - "How health plan changes leave patients stuck in red tape" -> 2-3, do NOT surface:
+      patient-experience awareness, nothing for a strategy team (was scored 5 — too high).
+    - "Google wants to build an evidence base for healthcare AI" -> 3-4: generic big-tech AI
+      initiative, nothing adoptable (was scored 5 — too high).
+    - CONFIRMED CORRECT on 7/15: single physician hires at competitors -> 6 (Baptist Miami
+      Neuroscience hire, Holy Cross urogynecologist hire — key hires at top competitors, but
+      still just hires); insurers suing CMS over MA stars -> 5; "flipping the script on payer
+      denials" -> 6 contingent on the piece being actionable (precedent > advice rule holds).
+    (Prior 2026-07-13 examples are codified in the rules above: 35-mile band, physician hires ~6,
+    payer-denial precedent > advice, integrated pharmacy 8, adoptable AI 7, ACO REACH 7.)
     - "Florida Coast Medical Center advances orthopedic surgery with OrthoGrid Hip AI" -> 5: NOT
       a true South Florida competitor — 6 was generous; vendor-adoption news at a non-competitor
       is slow-day at most.
