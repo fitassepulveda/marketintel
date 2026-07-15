@@ -151,11 +151,46 @@ def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict]]
 
     if use_llm:
         models = settings["llm"]["models"][settings["llm"]["provider"]]
-        scores = llm_relevance.score_batch(
-            client, models["scoring"], settings["org"],
-            settings["key_questions"], to_score,
-            guidance=settings["briefing"].get("relevance_guidance", ""),
-        )
+
+        # REUSE scores saved by an earlier run today (temperature-0 scoring is
+        # deterministic, so a saved score equals what a re-score would produce).
+        # A retry after a partial failure then only pays the LLM for what is
+        # still missing, instead of re-scoring the whole pool on every attempt
+        # (which is what turned the 2026-07-15 quota outage into a $7+ morning).
+        # llm_score 0 with rationale "not scored" is a failed batch, not a score.
+        def _has_saved_score(a) -> bool:
+            return (a.get("llm_score") is not None
+                    and (a.get("llm_rationale") or "") not in ("", "not scored"))
+
+        unscored = [a for a in to_score if not _has_saved_score(a)]
+        if len(unscored) < len(to_score):
+            log.info("Reusing %d saved scores; %d items still need the LLM.",
+                     len(to_score) - len(unscored), len(unscored))
+        fresh: dict[int, tuple[float, str]] = {}
+        if unscored:
+            try:
+                got = llm_relevance.score_batch(
+                    client, models["scoring"], settings["org"],
+                    settings["key_questions"], unscored,
+                    guidance=settings["briefing"].get("relevance_guidance", ""),
+                )
+            except llm_relevance.ScoringUnavailable as exc:
+                # Persist the batches that DID succeed before failing the run, so
+                # the retry reuses them instead of paying for them again.
+                saved = 0
+                for art, (s, why) in zip(unscored, getattr(exc, "partial", None) or []):
+                    if why != "not scored":
+                        store.save_scores(con, art["id"], s, why,
+                                          scoring.composite(weights, art, s))
+                        saved += 1
+                con.commit()
+                if saved:
+                    log.warning("Persisted %d partial scores for the retry to reuse.", saved)
+                raise
+            fresh = {id(a): sc for a, sc in zip(unscored, got)}
+        scores = [fresh[id(a)] if id(a) in fresh
+                  else (float(a["llm_score"]), a["llm_rationale"])
+                  for a in to_score]
     else:
         scores = [(5.0, "llm disabled")] * len(to_score)
 

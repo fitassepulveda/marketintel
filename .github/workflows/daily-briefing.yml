@@ -32,12 +32,26 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Guard — skip if a briefing already succeeded today
+      - name: Guard — skip if already succeeded today, or halt after too many failures
         id: guard
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: python scripts/guard_skip_if_ran.py
+
+      # Fires at most once per day: the run that emits alert=true skips the briefing
+      # and concludes successfully, so every later dispatch today skips silently.
+      - name: Alert — briefing halted for the day
+        if: steps.guard.outputs.alert == 'true'
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+        run: python scripts/alert_capped.py
 
       - name: Install dependencies
         if: steps.guard.outputs.should_run == 'true'

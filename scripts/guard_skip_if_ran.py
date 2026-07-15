@@ -1,19 +1,28 @@
-"""Guard: skip the briefing if one already SUCCEEDED today.
+"""Guard: skip the briefing if one already SUCCEEDED today, or if too many
+runs already FAILED today.
 
-The briefing now has two morning triggers for reliability — a reliable external
-cron (cron-job.org → workflow_dispatch) plus GitHub's own (flaky) `schedule:` cron
-kept as a backup. If both happen to fire on the same day we must not send the
-digest twice (the second run would otherwise hit the 24h re-brief suppression and
-mail a confusing "quiet-day" note). This guard asks the GitHub API whether the
-"Daily Market Intelligence Briefing" workflow already has a SUCCESSFUL run today
-(America/New_York) and, if so, tells the workflow to skip the send.
+Two jobs:
 
-The currently-executing run is in_progress (not yet a success), so it never
-matches itself — only a *prior* successful run today causes a skip.
+1. Same-day duplicate suppression. The briefing has two morning triggers for
+   reliability — a reliable external cron (cron-job.org → workflow_dispatch) plus
+   GitHub's own (flaky) `schedule:` cron as a backup. If both fire on the same day
+   we must not send the digest twice.
 
-Writes `should_run=true|false` to $GITHUB_OUTPUT. Fails OPEN: if the API can't be
-reached, it returns should_run=true so a transient API hiccup never suppresses a
-real briefing. Stdlib only (urllib), no pip install needed.
+2. Failed-run cap. The external cron re-dispatches every 30 minutes, which is great
+   for transient failures but disastrous for persistent ones (e.g. the 2026-07-15
+   Gemini quota outage: six 29-58 minute runs hammering a dead API). After
+   MAX_FAILED_RUNS_PER_DAY failures in one day we stop trying and emit alert=true
+   exactly once, so the workflow emails the owner instead of retrying forever.
+   Note: the run that skips-and-alerts itself concludes "success", which makes every
+   later dispatch today skip via the success check — that is what makes the alert
+   fire only once, with no extra state.
+
+The currently-executing run is in_progress (not yet a success/failure), so it never
+matches itself — only *prior* runs today are counted.
+
+Writes `should_run=true|false` and `alert=true|false` to $GITHUB_OUTPUT. Fails OPEN:
+if the API can't be reached, it returns should_run=true so a transient API hiccup
+never suppresses a real briefing. Stdlib only (urllib), no pip install needed.
 
 Env (provided by .github/workflows/daily-briefing.yml):
   GH_TOKEN           - token with actions:read (the Actions GITHUB_TOKEN)
@@ -32,18 +41,25 @@ from zoneinfo import ZoneInfo
 
 WORKFLOW_FILE = "daily-briefing.yml"
 TZ = ZoneInfo("America/New_York")
+# With quota-type failures now failing fast (~2-3 min) and the external cron
+# dispatching every 30 min, 4 failures ≈ two hours of genuine attempts.
+MAX_FAILED_RUNS_PER_DAY = 4
 
 
-def _set_output(should_run: bool) -> None:
+def _set_outputs(should_run: bool, alert: bool = False) -> None:
     out = os.environ.get("GITHUB_OUTPUT")
-    line = f"should_run={'true' if should_run else 'false'}"
+    lines = [
+        f"should_run={'true' if should_run else 'false'}",
+        f"alert={'true' if alert else 'false'}",
+    ]
     if out:
         with open(out, "a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
-    print(f"guard: {line}")
+            fh.write("\n".join(lines) + "\n")
+    print(f"guard: {' '.join(lines)}")
 
 
-def _already_succeeded_today() -> bool:
+def _todays_outcomes() -> tuple[bool, int]:
+    """Return (succeeded_today, failures_today) for prior runs of this workflow."""
     repo = os.environ["GITHUB_REPOSITORY"]
     token = os.environ["GH_TOKEN"]
     this_run = os.environ.get("GITHUB_RUN_ID", "")
@@ -59,6 +75,7 @@ def _already_succeeded_today() -> bool:
     })
     with urllib.request.urlopen(req, timeout=30) as resp:
         data = json.load(resp)
+    succeeded, failures = False, 0
     for run in data.get("workflow_runs", []):
         if str(run.get("id")) == str(this_run):
             continue  # never count ourselves
@@ -67,20 +84,32 @@ def _already_succeeded_today() -> bool:
             dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
         except ValueError:
             continue
-        if dt.astimezone(TZ).date() == today and run.get("conclusion") == "success":
-            return True
-    return False
+        if dt.astimezone(TZ).date() != today:
+            continue
+        if run.get("conclusion") == "success":
+            succeeded = True
+        elif run.get("conclusion") == "failure":
+            failures += 1
+    return succeeded, failures
 
 
 def main() -> None:
     try:
-        ran = _already_succeeded_today()
+        succeeded, failures = _todays_outcomes()
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError, KeyError) as e:
         # Fail OPEN: a transient API problem must never silence a real briefing.
         print(f"guard: could not verify prior runs ({e}); proceeding", file=sys.stderr)
-        _set_output(True)
+        _set_outputs(True)
         return
-    _set_output(not ran)
+    if succeeded:
+        _set_outputs(False)             # already sent today — normal duplicate guard
+    elif failures >= MAX_FAILED_RUNS_PER_DAY:
+        print(f"guard: {failures} failed runs today (cap {MAX_FAILED_RUNS_PER_DAY}); "
+              "halting for the day and alerting", file=sys.stderr)
+        _set_outputs(False, alert=True)  # this run then concludes 'success', so
+        #                                  later dispatches today skip silently
+    else:
+        _set_outputs(True)
 
 
 if __name__ == "__main__":

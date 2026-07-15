@@ -5,6 +5,7 @@ or "anthropic". Both expose one method:
 
     client.complete(model, system, prompt, max_tokens) -> response text
 """
+import json
 import logging
 import os
 import time
@@ -12,6 +13,31 @@ import time
 import requests
 
 log = logging.getLogger("llm_client")
+
+
+class QuotaExhausted(RuntimeError):
+    """Gemini returned a QUOTA-type 429 (daily cap, billing cap, or a key demoted to
+    quota 0). Unlike a transient "model overloaded" 429, retrying cannot help until
+    the quota resets or billing is fixed — callers should fail fast instead of
+    burning ~30 minutes of backoff per run (see the 2026-07-15 incident)."""
+
+
+def _quota_429(resp) -> bool:
+    """Classify a 429: True = quota exhaustion (do NOT retry), False = transient.
+
+    Google marks quota 429s with a QuotaFailure detail. Per-minute limits are worth
+    retrying (backoff outlasts the window); per-day/billing limits and quotaValue 0
+    (key demoted to free tier / suspended billing) are not.
+    """
+    if resp.status_code != 429:
+        return False
+    try:
+        blob = json.dumps(resp.json()).lower()
+    except ValueError:
+        return False
+    if '"quotavalue": "0"' in blob:
+        return True   # zero quota: demoted/suspended key — hopeless today
+    return "perday" in blob or "per_day" in blob or "daily" in blob
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 GEMINI_EMBED_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbedContents"
@@ -81,6 +107,8 @@ class LLMClient:
                 timeout=120,
             )
             self._last_call = time.time()
+            if _quota_429(resp):
+                raise QuotaExhausted(f"Gemini quota exhausted: {resp.text[:300]}")
             if resp.status_code in (429, 500, 503) and attempt < GEMINI_MAX_RETRIES - 1:
                 backoff = min(GEMINI_BACKOFF_CAP, GEMINI_MIN_SECONDS_BETWEEN_CALLS * (2 ** attempt))
                 log.warning("Gemini %s (overloaded); retry %d/%d in %ds",
@@ -126,6 +154,8 @@ class LLMClient:
                 json=payload, timeout=120,
             )
             self._last_call = time.time()
+            if _quota_429(resp):
+                raise QuotaExhausted(f"Gemini quota exhausted: {resp.text[:300]}")
             if resp.status_code in (429, 500, 503) and attempt < GEMINI_MAX_RETRIES - 1:
                 backoff = min(GEMINI_BACKOFF_CAP, GEMINI_MIN_SECONDS_BETWEEN_CALLS * (2 ** attempt))
                 log.warning("Gemini web_research %s (overloaded); retry %d/%d in %ds",
@@ -165,6 +195,8 @@ class LLMClient:
                 GEMINI_EMBED_URL.format(model=model),
                 headers={"x-goog-api-key": key}, json=body, timeout=120,
             )
+            if _quota_429(resp):
+                raise QuotaExhausted(f"Gemini quota exhausted: {resp.text[:300]}")
             if resp.status_code in (429, 500, 503) and attempt < GEMINI_MAX_RETRIES - 1:
                 time.sleep(GEMINI_MIN_SECONDS_BETWEEN_CALLS * (2 ** attempt))
                 continue

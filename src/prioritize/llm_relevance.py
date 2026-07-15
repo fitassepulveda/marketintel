@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 
-from src.llm_client import LLMClient, strip_fences
+from src.llm_client import LLMClient, QuotaExhausted, strip_fences
 
 log = logging.getLogger("prioritize.llm")
 
@@ -54,6 +54,17 @@ def score_batch(client: LLMClient, model: str, org: dict, key_questions: dict,
                 idx = start + int(obj["i"])
                 if start <= idx < start + len(batch):
                     results[idx] = (float(obj["score"]), str(obj.get("why", "")))
+        except QuotaExhausted as exc:
+            # Quota (daily/billing) 429: no batch can succeed until it's fixed. Stop
+            # immediately instead of hammering the API for every remaining batch, and
+            # hand back what already succeeded so the caller can persist (and a retry
+            # run can reuse) the work that was already paid for.
+            log.error("Gemini quota exhausted (%s); aborting remaining batches", exc)
+            err = ScoringUnavailable(
+                f"Gemini quota exhausted after {n_batches - n_failed - 1}/{n_batches} "
+                f"successful batches — failing fast")
+            err.partial = results
+            raise err from exc
         except Exception as exc:
             n_failed += 1
             log.warning("LLM scoring batch failed (%s); items keep score 0", exc)
