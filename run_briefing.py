@@ -418,7 +418,8 @@ def _send_personalized(settings, briefing, date_h, failing, dry_run, run_date, o
     for p in profs:
         greeting = p.get("display_name") or p.get("name", "")
         html = emailer.render_html(briefing, date_h, org_name, failing, greeting=greeting,
-                                   runners=runners)
+                                   runners=runners,
+                                   show_consider=settings["briefing"].get("show_consider_section", True))
         tag = (p.get("name", "profile").split() or ["profile"])[0].lower()
         (out_dir / f"{run_date}_{tag}.html").write_text(html, encoding="utf-8")
         if dry_run or not smtp_ready or not p.get("email"):
@@ -580,16 +581,20 @@ def main():
             log.warning("additional-context step skipped (%s)", exc)
 
     failing = store.failing_sources(con)
-    html = emailer.render_html(briefing, date_h, settings["org"]["name"], failing, runners=runners)
+    # "What UHealth should consider" section on/off (config: briefing.show_consider_section).
+    show_consider = settings["briefing"].get("show_consider_section", True)
+    html = emailer.render_html(briefing, date_h, settings["org"]["name"], failing, runners=runners,
+                               show_consider=show_consider)
 
     # Email digest for the top N stories (HTML, with larger titles). Captured/Published
     # dates are matched from the DB rows (by url, then title). Plain text saved too.
     org_short = settings["org"].get("short_name", settings["org"]["name"])
     top_n = settings["briefing"].get("digest_top_n", 5)
     digest = emailer.render_digest(briefing["stories"], date_h, org_short, articles=top, top_n=top_n,
-                                   runners=runners)
+                                   runners=runners, show_consider=show_consider)
     digest_html = emailer.render_digest_html(briefing["stories"], date_h, org_short, articles=top,
-                                             top_n=top_n, runners=runners)
+                                             top_n=top_n, runners=runners,
+                                             show_consider=show_consider)
 
     (out_dir / f"{run_date}.html").write_text(html, encoding="utf-8")
     (out_dir / f"{run_date}.json").write_text(json.dumps(briefing, indent=2), encoding="utf-8")

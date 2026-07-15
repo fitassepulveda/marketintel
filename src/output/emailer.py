@@ -98,7 +98,8 @@ def _abbr_footnotes_html(blob: str) -> str:
 
 
 def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str],
-                greeting: str | None = None, runners: list[dict] | None = None) -> str:
+                greeting: str | None = None, runners: list[dict] | None = None,
+                show_consider: bool = True) -> str:
     def sec(title):
         return (f'<h2 style="color:{BRAND};font-size:12px;margin:18px 0 6px;'
                 f'text-transform:uppercase;letter-spacing:.04em">{escape(title)}</h2>')
@@ -175,7 +176,8 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
             f'{escape(AREA_LABELS.get(area, area))}</span>'
         )
         # "What UHealth should consider" — strip any echoed label the model prepends.
-        ns = s.get("next_steps") or s.get("watch_next", "")
+        # Hidden entirely when show_consider is False (config: briefing.show_consider_section).
+        ns = (s.get("next_steps") or s.get("watch_next", "")) if show_consider else ""
         ns = re.sub(r"^\s*what uhealth should consider:?\s*", "", ns, flags=re.I)
         pub = _fmt_date(s.get("published"))
         pub_html = (f'<span style="color:{MUTED};font-size:10px">&nbsp;·&nbsp; {escape(pub)}</span>'
@@ -238,7 +240,8 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
     # Abbreviation footnotes — scan everything visible in the email body.
     blob = " ".join(
         f'{s.get("title","")} {s.get("what_happened","")} {s.get("why_it_matters","")} '
-        f'{s.get("next_steps","") or s.get("watch_next","")} {AREA_LABELS.get(s.get("area",""), "")}'
+        f'{(s.get("next_steps","") or s.get("watch_next","")) if show_consider else ""} '
+        f'{AREA_LABELS.get(s.get("area",""), "")}'
         for s in stories
     )
     parts.append(_abbr_footnotes_html(blob))
@@ -336,7 +339,8 @@ def _runners_html(runners: list[dict] | None) -> str:
 
 def render_digest(stories: list[dict], date_str: str, org_short: str,
                   articles: list[dict] | None = None, top_n: int = 5,
-                  runners: list[dict] | None = None) -> str:
+                  runners: list[dict] | None = None,
+                  show_consider: bool = True) -> str:
     """Plain-text digest of the top N stories in the per-story bullet format.
 
     `articles` are the source DB rows; we match each story to one (by URL, then by
@@ -377,7 +381,10 @@ def render_digest(stories: list[dict], date_str: str, org_short: str,
             f'* What happened: {s.get("what_happened", "")}',
             f'* Why it matters to {org_short}: {s.get("why_it_matters", "")}',
             f'* Institutional exposure: {s.get("exposure", "")}',
-            f'* What to watch next: {s.get("watch_next", "")}',
+        ] + (
+            # Hidden when show_consider is False (config: briefing.show_consider_section).
+            [f'* What to watch next: {s.get("watch_next", "")}'] if show_consider else []
+        ) + [
             f'* Supporting coverage: Read more through [{label}]({url})',
             f'* Captured Date: {captured}',
             f'* Published Date: {published}',
@@ -390,7 +397,8 @@ def render_digest(stories: list[dict], date_str: str, org_short: str,
 
 def render_digest_html(stories: list[dict], date_str: str, org_short: str,
                        articles: list[dict] | None = None, top_n: int = 5,
-                       runners: list[dict] | None = None) -> str:
+                       runners: list[dict] | None = None,
+                       show_consider: bool = True) -> str:
     """HTML version of the digest — same content, with larger article titles."""
     articles = articles or []
     by_url, by_title = {}, {}
@@ -456,9 +464,10 @@ def render_digest_html(stories: list[dict], date_str: str, org_short: str,
             f'<p style="margin:5px 0"><b>Why it matters to {escape(org_short)}:</b> '
             f'{escape(s.get("why_it_matters", ""))}</p>'
             f'<p style="margin:5px 0"><b>Institutional exposure:</b> {escape(s.get("exposure", ""))}</p>'
-            f'<p style="margin:5px 0"><b>What to watch next:</b> '
-            f'{escape(s.get("watch_next", ""))}</p>'
-            f'{ac_html}'
+            # Hidden when show_consider is False (config: briefing.show_consider_section).
+            + (f'<p style="margin:5px 0"><b>What to watch next:</b> '
+               f'{escape(s.get("watch_next", ""))}</p>' if show_consider else "")
+            + f'{ac_html}'
             f'<p style="margin:5px 0"><b>Supporting coverage:</b> '
             f'<a href="{url}" style="color:#1F3864">{escape(label)}</a></p>'
             f'<p style="margin:5px 0;color:#666;font-size:12px">'

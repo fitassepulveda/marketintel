@@ -41,6 +41,13 @@ key_questions:
     Is there emerging reputation risk or public narrative risk?
 
 briefing:
+  # "What UHealth should consider" / "What to watch next" per-story section — TEMPORARILY
+  # DISABLED 2026-07-15 (strategy-team direction) until proper organizational context is
+  # provided for the product launch. TO TURN IT BACK ON: set this to true — nothing else to
+  # change. Synthesis still generates the content (and it stays in the saved JSON); it is
+  # simply not rendered in the main email, the text digest, or the HTML digest.
+  show_consider_section: false
+
   # Extra scoring direction injected into the LLM relevance prompt (tune freely, no code change).
   # Frame (2026-06-17): EXEC-facing — score by IMPACT ON UHEALTH'S STRATEGY & LONG-TERM DIRECTION,
   # fusing external competitive intel with operational/financial/strategic impact. Grounded in
