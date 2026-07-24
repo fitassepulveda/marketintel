@@ -481,6 +481,12 @@ briefing:
   # is the OLD rolling-window value and is no longer used — kept only for reference; the rolling
   # window let stories briefed late one day reappear the next morning.)
   rebrief_after_hours: 24
+  # HISTORY DEDUP (added 2026-07-24): candidate stories are also deduped against everything
+  # briefed within this many days, so an event we already showed cannot return under a fresh
+  # URL/publish date (e.g. Baptist's $100M gift, briefed 6/15, re-reported by the Palm Beach
+  # Post on 7/23 and re-briefed 7/24). Uses the same semantic-embedding match (keyword
+  # fallback) as same-day dedup. Set to 0 to disable.
+  dedup_history_days: 60
   # For any candidate article missing a publish date, fetch the page and read the
   # date the site records (article:published_time / JSON-LD), so the 72h window
   # filters on a real publish date instead of fetch time. Persisted (fetched once).

@@ -104,7 +104,7 @@ def _is_recent(article: dict, cutoff: datetime) -> bool:
     return fetched is not None and fetched >= cutoff
 
 
-def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict]]:
+def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict], dict]:
     settings, weights = cfg["settings"], cfg["weights"]
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=settings["briefing"]["lookback_hours"])
@@ -127,7 +127,7 @@ def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict]]
     rows = [a for a in rows if _is_recent(a, cutoff)]
     if not rows:
         log.info("No articles published within the last %dh.", settings["briefing"]["lookback_hours"])
-        return [], []   # (top, runners) — main() unpacks a pair; [] alone would crash the run
+        return [], [], {}   # (top, runners, dup_map) — main() unpacks a triple
 
     # No keyword influence anywhere. The LLM scores every recent article for relevance
     # to the org (against its area's key question). Order by recency (neutral), then
@@ -212,24 +212,57 @@ def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict]]
     con.commit()
 
     kept.sort(key=lambda a: a["composite_score"], reverse=True)
-    # Collapse same-event duplicates. Primary: semantic (embedding) similarity, which
-    # understands meaning regardless of wording. Fallback: keyword rules if embeddings
-    # are unavailable (no key / API error).
+    # Collapse same-event duplicates — against BOTH today's pool and recently-BRIEFED history.
+    # Primary: semantic (embedding) similarity; fallback: keyword rules if embeddings are
+    # unavailable (no key / API error). Two sent-briefing repeats drove the design (2026-07-24):
+    #  * HISTORY SEED — Baptist's $100M gift (briefed 6/15) was re-reported by another outlet
+    #    5 weeks later under a fresh URL + publish date and re-briefed. URL-hash dedup can't
+    #    see that, so candidates are also matched against everything briefed in the last
+    #    dedup_history_days; a match means "already shown" and the candidate is dropped.
+    #  * ABSORPTION TRACKING — Cleveland Clinic's $25M gift arrived twice on 7/23 from two
+    #    sources; dedup dropped one copy but only the SURVIVOR was marked briefed, so the
+    #    dropped copy resurfaced solo the next morning. The absorbed map lets main() stamp
+    #    dropped duplicates as briefed together with their surviving copy.
+    hist_days = settings["briefing"].get("dedup_history_days", 60)
+    pool_ids = {a["id"] for a in kept}
+    history = []
+    if hist_days:
+        hist_floor = (now - timedelta(days=hist_days)).isoformat()
+        # Exclude the current pool itself: on a same-day re-run, today's already-briefed
+        # stories are BOTH candidates and history — they must not suppress themselves.
+        history = [dict(r) for r in store.briefed_recent(con, hist_floor)
+                   if r["id"] not in pool_ids]
     before = len(kept)
-    deduped = None
-    if use_llm and client and len(kept) > 1:
+    deduped = absorbed = None
+    if use_llm and client and kept and (len(kept) > 1 or history):
         try:
-            vecs = client.embed([f'{a["title"]} {(a.get("summary") or "")[:400]}' for a in kept])
-            deduped = scoring.semantic_dedupe(kept, vecs, weights.get("dedup_cosine_similarity", 0.85))
-            log.info("Dedup: semantic (embeddings)")
+            texts = [f'{a["title"]} {(a.get("summary") or "")[:400]}' for a in kept + history]
+            vecs = client.embed(texts)
+            deduped, absorbed = scoring.semantic_dedupe_track(
+                kept, vecs[:len(kept)], weights.get("dedup_cosine_similarity", 0.85),
+                seed=history, seed_vectors=vecs[len(kept):])
+            log.info("Dedup: semantic (embeddings), vs %d briefed history stories", len(history))
         except Exception as exc:
             log.warning("Embedding dedup failed (%s); falling back to keyword dedup", exc)
     if deduped is None:
-        deduped = scoring.dedupe_by_title(kept, weights.get("dedup_title_similarity", 0.90),
-                                          weights.get("dedup_token_overlap", 0.6))
-        log.info("Dedup: keyword fallback")
+        deduped, absorbed = scoring.dedupe_by_title_track(
+            kept, weights.get("dedup_title_similarity", 0.90),
+            weights.get("dedup_token_overlap", 0.6), seed=history)
+        log.info("Dedup: keyword fallback, vs %d briefed history stories", len(history))
     kept = deduped
     kept.sort(key=lambda a: a["composite_score"], reverse=True)  # dedup may reorder
+
+    # Absorption map for mark_briefed: survivor article id -> ids of duplicates it absorbed.
+    # Duplicates absorbed by a HISTORY story go under key None — the event was already
+    # briefed, so they're stamped on any successful send regardless of today's selection.
+    dup_map: dict = {}
+    for dropped, absorber in absorbed:
+        key = absorber["id"] if absorber["id"] in pool_ids else None
+        dup_map.setdefault(key, []).append(dropped["id"])
+        if key is None:
+            log.info("Dedup: %r duplicates already-briefed story %s (%r)",
+                     str(dropped.get("title", ""))[:70], absorber["id"],
+                     str(absorber.get("title", ""))[:70])
 
     # Selection: include EVERY story at/above select_threshold (composite), but never
     # fewer than min_stories nor more than max_stories. Replaces a fixed top-N — a strong
@@ -250,7 +283,7 @@ def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict]]
              "-> %d selected (min %d / max %d), %d runners-up",
              len(to_score), before, weights["score_threshold"], len(kept),
              len(strong), select_threshold, len(final), min_stories, max_stories, len(runners))
-    return final, runners
+    return final, runners, dup_map
 
 
 def _flag_broken_links(stories, timeout: int = 5, max_workers: int = 8) -> None:
@@ -456,7 +489,7 @@ def main():
 
     client = LLMClient(cfg["settings"]["llm"]["provider"]) if use_llm else None
     try:
-        top, runners = prioritize(con, cfg, client, use_llm)
+        top, runners, dup_map = prioritize(con, cfg, client, use_llm)
     except llm_relevance.ScoringUnavailable as exc:
         # LLM down during scoring — fail (don't send a false quiet-day note) so the watchdog
         # alerts and a re-trigger retries until the LLM is back.
@@ -623,7 +656,15 @@ def main():
     if sent:
         # Full ISO timestamp (not just the date) so the rebrief window is measured
         # precisely from the first time each story was briefed.
-        store.mark_briefed(con, [a["id"] for a in top], datetime.now(timezone.utc).isoformat())
+        ids = [a["id"] for a in top]
+        # Also stamp duplicates that dedup collapsed into a SENT story, plus re-reports
+        # of already-briefed history (dup_map key None) — otherwise a dropped copy
+        # stays eligible and resurfaces solo on a later day (Cleveland Clinic $25M,
+        # briefed 7/23 via one source, repeated 7/24 via the unstamped second source).
+        extra = list(dup_map.get(None, []))
+        for i in ids:
+            extra.extend(dup_map.get(i, []))
+        store.mark_briefed(con, ids + extra, datetime.now(timezone.utc).isoformat())
         con.commit()
 
 

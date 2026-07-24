@@ -105,6 +105,20 @@ def candidates_recent(con, since_iso: str, briefed_after_iso: str) -> list[sqlit
     ).fetchall()
 
 
+def briefed_recent(con, briefed_since_iso: str) -> list[sqlite3.Row]:
+    """Stories that already appeared in a briefing within the history-dedup window.
+
+    Used to suppress re-reports of an event we've already shown (same story back
+    under a new URL and a fresh publish date weeks later — e.g. the Baptist $100M
+    gift, briefed 6/15, re-reported by another outlet on 7/23). Returns only what
+    dedup needs: id, title, summary."""
+    return con.execute(
+        "SELECT id, title, summary FROM articles "
+        "WHERE briefed_on IS NOT NULL AND briefed_on >= ?",
+        (briefed_since_iso,),
+    ).fetchall()
+
+
 def set_published(con, article_id: int, published_iso: str):
     """Persist a publish date recovered by page enrichment, so we only fetch it once."""
     con.execute("UPDATE articles SET published=? WHERE id=?", (published_iso, article_id))

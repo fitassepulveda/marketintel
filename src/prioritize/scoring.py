@@ -42,19 +42,43 @@ def _cosine(u: list, v: list) -> float:
     return dot / (nu * nv) if nu and nv else 0.0
 
 
-def semantic_dedupe(articles: list, vectors: list, threshold: float) -> list:
+def semantic_dedupe_track(articles: list, vectors: list, threshold: float,
+                          seed: list = (), seed_vectors: list = ()) -> tuple[list, list]:
     """Collapse same-event stories by embedding similarity (meaning, not words).
 
     `articles` ordered best-first, aligned with `vectors`. Greedy: keep the first
     member of each cluster, drop later items whose vector is within `threshold`
-    cosine similarity of one already kept. Generalizes across any wording/topic.
-    """
-    kept, kept_vecs = [], []
+    cosine similarity of one already kept.
+
+    `seed`/`seed_vectors` are already-briefed HISTORY stories: they are treated as
+    pre-kept (checked first, never returned), so any candidate matching one is a
+    re-report of an event we've already shown and gets dropped.
+
+    Returns (kept, absorbed): `kept` is today's surviving articles; `absorbed` is
+    a list of (dropped_article, absorbing_article) pairs — the absorber is either
+    a seed/history item or an earlier kept candidate. Callers use it to stamp
+    dropped duplicates as briefed alongside their surviving copy, so a dropped
+    copy can never resurface solo on a later day (Cleveland Clinic $25M, 7/24)."""
+    kept_all, kept_vecs = list(seed), list(seed_vectors)
+    kept, absorbed = [], []
     for a, v in zip(articles, vectors):
-        if any(_cosine(v, kv) >= threshold for kv in kept_vecs):
+        hit = None
+        for k, kv in zip(kept_all, kept_vecs):
+            if _cosine(v, kv) >= threshold:
+                hit = k
+                break
+        if hit is not None:
+            absorbed.append((a, hit))
             continue
-        kept.append(a)
+        kept_all.append(a)
         kept_vecs.append(v)
+        kept.append(a)
+    return kept, absorbed
+
+
+def semantic_dedupe(articles: list, vectors: list, threshold: float) -> list:
+    """Back-compat wrapper around semantic_dedupe_track (no history, no tracking)."""
+    kept, _ = semantic_dedupe_track(articles, vectors, threshold)
     return kept
 
 
@@ -116,19 +140,35 @@ def _same_event(a: dict, b: dict, title_threshold: float, token_overlap: float) 
     return False
 
 
+def dedupe_by_title_track(articles: list, title_threshold: float = 0.90,
+                          token_overlap: float = 0.6, seed: list = ()) -> tuple[list, list]:
+    """Keyword-fallback twin of semantic_dedupe_track (same seed/tracking contract).
+
+    Input ordered best-first; the first member of each cluster is kept and later
+    duplicates dropped. A duplicate is: a near-identical headline, OR a shared
+    dollar amount plus a shared word, OR headlines sharing most distinctive words.
+    `seed` items (already-briefed history) are pre-kept and never returned.
+    Returns (kept, absorbed) — see semantic_dedupe_track."""
+    kept_all = list(seed)
+    kept, absorbed = [], []
+    for a in articles:
+        hit = None
+        for k in kept_all:
+            if _same_event(a, k, title_threshold, token_overlap):
+                hit = k
+                break
+        if hit is not None:
+            absorbed.append((a, hit))
+            continue
+        kept_all.append(a)
+        kept.append(a)
+    return kept, absorbed
+
+
 def dedupe_by_title(articles: list, title_threshold: float = 0.90,
                     token_overlap: float = 0.6) -> list:
-    """Collapse duplicate stories (same event from different sources/urls).
-
-    Input should be ordered best-first; the first member of each cluster is kept and
-    later duplicates dropped. A duplicate is: a near-identical headline, OR a shared
-    dollar amount plus a shared word, OR headlines sharing most distinctive words.
-    """
-    kept = []
-    for a in articles:
-        if any(_same_event(a, k, title_threshold, token_overlap) for k in kept):
-            continue
-        kept.append(a)
+    """Back-compat wrapper around dedupe_by_title_track (no history, no tracking)."""
+    kept, _ = dedupe_by_title_track(articles, title_threshold, token_overlap)
     return kept
 
 
