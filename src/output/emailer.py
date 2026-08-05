@@ -435,10 +435,11 @@ def render_digest_html(stories: list[dict], date_str: str, org_short: str,
             f'&nbsp;&nbsp;<span style="background:#EAF0F8;color:#1F3864;padding:1px 7px;'
             f'border-radius:10px">LLM relevance {score}/10</span></span>'
         ) if score else ""
-        # Additional context (prior coverage) — rendered ONLY when populated.
+        # Background line (earlier reporting) — rendered ONLY when the story has a history.
+        # Requires the background sentence itself: a bare list of links is not context.
         ac = s.get("additional_context") or {}
         ac_html = ""
-        if ac.get("summary") or ac.get("related") or ac.get("web"):
+        if ac.get("summary"):
             def _links(items):
                 return " &nbsp;·&nbsp; ".join(
                     f'<a href="{escape(r.get("url",""))}" style="color:#1F3864">'
@@ -449,8 +450,8 @@ def render_digest_html(stories: list[dict], date_str: str, org_short: str,
             web_links = _links(ac.get("web"))
             ac_html = (
                 f'<p style="margin:5px 0;background:#F7F9FC;border-left:3px solid #6b7a90;'
-                f'padding:6px 10px"><b>Additional context:</b> {escape(ac.get("summary",""))}'
-                + (f'<br><span style="font-size:12px;color:#666">From the web: {web_links}</span>' if web_links else "")
+                f'padding:6px 10px"><b>Background:</b> {escape(ac.get("summary",""))}'
+                + (f'<br><span style="font-size:12px;color:#666">Earlier reporting: {web_links}</span>' if web_links else "")
                 + (f'<br><span style="font-size:12px;color:#666">Prior coverage: {prior_links}</span>' if prior_links else "")
                 + '</p>')
         parts.append(

@@ -1,14 +1,18 @@
-"""Additional context: 'what else should we know about this topic?'
+"""Background note: 'is this actually new, or has it been running for a while?'
+
+The briefing scores every story on its own and its DB starts mid-June 2026, so a fresh
+article about a long-running issue (a merger effort, a regulatory fight, litigation) reads
+as a brand-new development. This module is the correction.
 
 For each story selected for the briefing, this:
-  1. SEARCHES THE LIVE WEB via Gemini (Google Search grounding) for additional and more
-     recent reporting on the topic, returning the real source links it used,
+  1. SEARCHES THE LIVE WEB via Gemini (Google Search grounding) for the EARLIER reporting
+     on the same underlying issue, returning the real source links it used,
   2. ALSO gives the model related PRIOR articles already in our database (cheap keyword
      retrieval) so it can flag ongoing/earlier coverage, and
-  3. attaches an `additional_context` block (summary + prior-coverage links + web links)
-     to the matching briefing story.
+  3. attaches an `additional_context` block (one-line background + prior-coverage links +
+     web links) to the matching briefing story.
 
-The email renders an "Additional context" section ONLY when this is populated, so a
+The email renders a "Background" line ONLY when the story genuinely has a history, so a
 story with no prior coverage looks exactly as it does today.
 
 Config-gated (settings.additional_context.enabled, default OFF) and fully fail-safe:
@@ -67,16 +71,32 @@ def find_related_prior(con, story: dict, exclude_urls: set,
     return scored[:max_candidates]
 
 
-SYSTEM = """You add context to a healthcare executive briefing. For a CURRENT story you
-have two inputs: (1) SEARCH THE LIVE WEB for additional and more recent reporting on this
-exact topic, and (2) a numbered list of PRIOR articles already in our database. Synthesize
-genuinely useful additional context the executive should know — earlier or related
-developments, what's happened since, corroborating or conflicting reports, and what it
-implies. Be strict and factual: ignore loosely-related or generic matches, and base claims
-on what you actually find (web) or were given (prior articles); never invent sources.
+SYSTEM = """You add a one-line BACKGROUND note to a healthcare executive briefing.
+
+Your job is to answer ONE question: is this CURRENT story a genuinely new development, or is
+it the latest installment in a storyline that has been running for a while? The briefing
+scores each story on its own and has no memory before mid-2026, so a fresh article about an
+old issue can look like breaking news. You are the correction for that.
+
+You have two inputs: (1) SEARCH THE LIVE WEB for the EARLIER reporting on this same
+underlying issue — deliberately look for the oldest relevant coverage, not just the most
+recent, and note when the story began and what has already happened (prior attempts,
+votes, filings, rulings, deals that closed or collapsed); and (2) a numbered list of PRIOR
+articles already in our database.
+
+Write the background as ONE sentence, maximum two if a date and an outcome will not fit in
+one. Lead with when the storyline started or when the last significant step occurred, and
+include specific dates. Do not restate the current story, do not speculate, and do not
+explain implications — background only.
+
+Set has_context FALSE when the story is genuinely new, when the only earlier coverage is
+the announcement of this same event, or when you cannot find real prior reporting. A story
+with no history should get no note. Be strict and factual: ignore loosely-related or
+generic matches, base every claim on what you actually found (web) or were given (prior
+articles), and never invent sources.
 
 End your answer with a single line of JSON (and nothing after it):
-{"has_context": true|false, "summary": "2-4 sentence context note, or empty",
+{"has_context": true|false, "summary": "one-sentence background note with dates, or empty",
  "related_indices": [indices of genuinely related PRIOR articles]}"""
 
 
