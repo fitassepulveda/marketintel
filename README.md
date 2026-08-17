@@ -14,9 +14,11 @@ LLM synthesis → HTML digest email. A separate watchdog alerts if a day's run i
 
 Step-by-step of what the pipeline does each run, and the reasoning behind each choice.
 
-1. **Ingest (`src/ingest/`).** Free RSS/Google-News feeds cover most sources. Competitor
-   health systems (Baptist, Jackson, …) have no usable RSS, so they're monitored by
-   **Yutori "scouts"** — agents that read the newsroom pages and return structured findings.
+1. **Ingest (`src/ingest/`).** Free RSS/Google-News feeds cover most sources. The seven
+   competitor health systems we monitor (Baptist Health, Jackson Health, Cleveland Clinic
+   Florida, Memorial Healthcare, Mount Sinai, HCA Florida, Broward Health) expose no usable
+   RSS — checked 2026-06-12, Broward 2026-08-10 — so they're monitored by **Yutori
+   "scouts"**, agents that read the newsroom pages and return structured findings.
    Everything lands in one SQLite file (`data/intel.db`), deduped on exact URL at write time.
 
 2. **3-day window by *publish* date (`run_briefing._is_recent`).** We keep only stories
@@ -71,8 +73,44 @@ Step-by-step of what the pipeline does each run, and the reasoning behind each c
    back to the repo after each successful run (shared by local + CI runs, and the daily commit
    also keeps the schedule from auto-pausing).
 
-**Cost:** Gemini ≈ a few cents/run (scoring + synthesis + embeddings). Yutori = **$0.35 per
-scout-scan**, so each competitor scout ≈ $10.50/month at one daily scan. RSS/Google-News is free.
+**Cost.** RSS/Google-News is free. Gemini ≈ a few cents/run (scoring, synthesis, embeddings,
+and the Background web-search step), well inside the free grounding allowance of 1,500
+grounded queries/day.
+
+Yutori is the only material spend. Three APIs are in use, at published rates:
+
+| API | Rate | What triggers it |
+|---|---|---|
+| Scouting | $0.35 per scout-run | One run per source per day, on Yutori's schedule |
+| Browsing | $0.015 per step (`navigator-n1.5-latest`) | Every briefed story (`browse_all`), max 12 steps |
+| Research | $0.35 per task | Stories with `llm_score >= research_min_relevance`, max 5/run |
+
+**Monthly budget: $100.** Scoped to **seven competitor scouts** — Baptist Health, Jackson
+Health, Cleveland Clinic Florida, Memorial Healthcare, Mount Sinai Medical Center, HCA
+Florida, and Broward Health. Central estimate ≈ $92/month:
+
+| Component | Monthly | Basis |
+|---|---|---|
+| Scouting | $74.48 | 7 sources × 30.4 daily runs × $0.35 |
+| Browsing | $9.40 | ~5.7 briefed stories/day × 22 weekdays × ~5 steps |
+| Research | $8.21 | ~1.1 tasks/day × 22 weekdays (threshold 9) |
+
+Two things to know when re-forecasting. **Scouts bill on ~30.4 days, not 22** — they run on
+their own daily interval regardless of whether the weekday briefing fires. And **browsing +
+research (≈$18) do not scale with source count**, because they are driven by how many stories
+are *briefed*, which selection caps at 5–12/day no matter how many sources feed in. So the
+variable cost is ≈$10.64 per monitored source per month, on a ≈$18 fixed base — scouting is
+~80% of the bill.
+
+`research_min_relevance` was raised 8 → 9 on 2026-08-10 to hold this budget: at threshold 8
+research ran ≈$22.59/mo and the total ≈$106. Remaining levers if it needs to come down
+further: drop a scout to weekly ($1.52/mo vs $10.64), or lower `browsing_max_steps` (minor).
+
+Upside case, using the *observed* maxima rather than the config caps (9 stories briefed in a
+day, 4 of them scoring ≥9): ≈$120/month, and only if every single day ran at that maximum,
+which has not happened. The config ceilings (`max_browse` 12, `max_research` 5) are not
+reachable in practice — the per-source cap and the 5–12 selection band mean a single source
+never contributes 12 stories.
 
 ---
 
@@ -82,9 +120,13 @@ Status date: **June 16, 2026**. Owners: **W** = William, **F** = Fernando, **C**
 Full background in `docs/Implementation_Plan.docx`.
 
 **Current status:** live and automated end-to-end — Gemini scoring/synthesis (billing
-enabled), Yutori scouts running daily (Baptist, Jackson), real sends validated, scheduled
-6:07am ET weekday run (scouts scan 5am) + missed-run watchdog in place. Remaining work is calibration, scaling
-competitor scouts, and leadership go-live sign-off.
+enabled), real sends validated, scheduled 6:07am ET weekday run (scouts scan 5am) +
+missed-run watchdog in place. Scouts live: **Baptist, Jackson**. Target scope is **seven
+competitor scouts** at a **$100/month Yutori budget** — Cleveland Clinic Florida, Memorial
+Healthcare, Mount Sinai, HCA Florida, and Broward Health remain to be activated (all five
+are already declared `type: yutori` in `config/sources.yaml`; create with
+`scripts/setup_scouts.py`).
+Remaining work is calibration, scaling competitor scouts, and leadership go-live sign-off.
 
 ### Phase A — INPUTS (data capture & ingestion) · Jun 12–17
 

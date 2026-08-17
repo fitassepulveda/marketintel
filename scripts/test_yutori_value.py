@@ -16,6 +16,7 @@ Usage (on your Mac, venv active; needs GEMINI_API_KEY + YUTORI_API_KEY in .env):
   python3 scripts/test_yutori_value.py               # full A/B run  (~$0.50 Yutori cost)
   python3 scripts/test_yutori_value.py --pick-only   # just show which article would be used
   python3 scripts/test_yutori_value.py --url URL     # override: test a specific stored article
+  python3 scripts/test_yutori_value.py --date 2026-07-10   # top story of that day's briefing
   python3 scripts/test_yutori_value.py --send        # also email the comparison to the
                                                      # feedback contacts (wef28, fxs1141)
   python3 scripts/test_yutori_value.py --send --to a@x.com,b@y.com   # custom recipients
@@ -40,14 +41,26 @@ from src.output import emailer, synthesize        # noqa: E402
 ENRICH_KEYS = ("full_text", "extracted_facts", "research_context")
 
 
-def pick_article(con, url: str | None) -> dict:
-    """Highest composite from the most recent send. mark_briefed() stamps every story
-    of a run with ONE identical timestamp, so ordering by briefed_on DESC then
-    composite DESC yields exactly 'top story of the latest briefing'."""
+def pick_article(con, url: str | None, date: str | None = None) -> dict:
+    """Highest composite from the most recent send (or from the briefing sent on
+    --date YYYY-MM-DD). mark_briefed() stamps every story of a run with ONE identical
+    timestamp, so ordering by briefed_on DESC then composite DESC yields exactly
+    'top story of the latest briefing'."""
     if url:
         row = con.execute("SELECT * FROM articles WHERE url=?", (url,)).fetchone()
         if not row:
             sys.exit(f"No stored article with url {url}")
+        return dict(row)
+    if date:
+        row = con.execute(
+            "SELECT * FROM articles WHERE briefed_on LIKE ? "
+            "ORDER BY composite_score DESC LIMIT 1", (f"{date}%",)).fetchone()
+        if not row:
+            dates = [r[0][:10] for r in con.execute(
+                "SELECT DISTINCT briefed_on FROM articles WHERE briefed_on IS NOT NULL "
+                "ORDER BY briefed_on DESC LIMIT 8")]
+            sys.exit(f"No briefing found for {date} (did you git pull? CI commits "
+                     f"data/intel.db). Recent briefing dates: {', '.join(dates)}")
         return dict(row)
     row = con.execute(
         "SELECT * FROM articles WHERE briefed_on IS NOT NULL "
@@ -123,6 +136,8 @@ def compare_html(art, html_a, html_b, enriched, date_h) -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default=None, help="test a specific stored article by URL")
+    ap.add_argument("--date", default=None,
+                    help="YYYY-MM-DD: use the top story of the briefing sent that day")
     ap.add_argument("--pick-only", action="store_true", help="show the chosen article and exit")
     ap.add_argument("--send", action="store_true",
                     help="email the comparison to --to (default: the feedback contacts)")
@@ -132,7 +147,7 @@ def main():
 
     cfg = config.load_all()
     con = store.connect()
-    art = pick_article(con, args.url)
+    art = pick_article(con, args.url, args.date)
     print(f'Article: {art["title"]}\nSource:  {art["source"]}  |  area {art["area"]}\n'
           f'Scores:  llm {art.get("llm_score")}/10, composite {art.get("composite_score")}\n'
           f'Briefed: {art.get("briefed_on")}\nURL:     {art["url"]}')
@@ -143,7 +158,9 @@ def main():
     date_h = datetime.now().strftime("%A, %B %d, %Y")
     out = config.DATA_DIR / "briefings"
     out.mkdir(exist_ok=True)
-    tag = datetime.now().strftime("%Y-%m-%d")
+    # Name output files after the briefing date being tested, so runs for different
+    # dates on the same day don't overwrite each other.
+    tag = (art.get("briefed_on") or "")[:10] or datetime.now().strftime("%Y-%m-%d")
 
     # --- A: RSS-only (strip any enrichment already stored on the row) -----------------
     art_a = {k: v for k, v in art.items() if k not in ENRICH_KEYS}

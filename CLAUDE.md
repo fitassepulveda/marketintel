@@ -32,7 +32,12 @@ and emails an HTML digest of the top stories each weekday morning.
   (`scripts/guard_skip_if_ran.py`) + a `concurrency` group ensure the briefing sends at
   most once if both fire. Full setup in `CLOUD_SCHEDULING.md`. Yutori scouts scan at 5am ET.
 - **Provider:** Gemini, with **billing enabled** (no longer on the flaky free tier).
-- **Scouts:** 2 active competitor scouts (Baptist Health, Jackson Health), scanning daily.
+- **Scouts:** 2 active (Baptist Health, Jackson Health), scanning daily. **Scope set
+  2026-08-10 is SEVEN competitor scouts** — plus Cleveland Clinic Florida, Memorial
+  Healthcare, Mount Sinai Medical Center, HCA Florida, Broward Health — against a
+  **$100/month Yutori budget** (see README "Cost"). All seven are declared `type: yutori`
+  in `config/sources.yaml`; the five pending just need `scripts/setup_scouts.py`. Every
+  extra scout is ~$10.64/mo, so do not add one without re-running the budget.
 - **Recipients (2026-06-18):** wef28, jakeherman, psharma, cjvonherrath, fxs1141 @miami.edu (5).
 - **Prioritization overhauled (2026-06-17/18).** Scoring is now an EXEC-facing
   "impact on UHealth's strategy & long-term direction" rubric (three gates, seven strategic

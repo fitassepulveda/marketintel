@@ -12,6 +12,12 @@ For each story selected for the briefing, this:
   3. attaches an `additional_context` block (one-line background + prior-coverage links +
      web links) to the matching briefing story.
 
+The note is held to two hard rules: at most `max_chars` (200) characters, and it must state
+the date the storyline was ORIGINALLY reported. Undated notes are dropped rather than sent —
+"this has been running a while" with no date gives the reader nothing to anchor on. The
+note must also carry the storyline to its current state: "CMS finalized this in 2017" is a
+failed note if the Supreme Court voided it in 2022.
+
 The email renders a "Background" line ONLY when the story genuinely has a history, so a
 story with no prior coverage looks exactly as it does today.
 
@@ -84,20 +90,39 @@ recent, and note when the story began and what has already happened (prior attem
 votes, filings, rulings, deals that closed or collapsed); and (2) a numbered list of PRIOR
 articles already in our database.
 
-Write the background as ONE sentence, maximum two if a date and an outcome will not fit in
-one. Lead with when the storyline started or when the last significant step occurred, and
-include specific dates. Do not restate the current story, do not speculate, and do not
-explain implications — background only.
+HARD RULES for the background note:
+  * ONE sentence, 200 CHARACTERS MAXIMUM, including spaces. Count them. A note over 200
+    characters is unusable — cut adjectives and framing, never the date or the outcome.
+  * It MUST contain the DATE THE STORYLINE WAS ORIGINALLY REPORTED — the earliest coverage
+    of the underlying issue, not the date of the current article. Give month and year at
+    minimum ("November 2017"), a full date when you have one ("November 1, 2017"). A note
+    without an original-publication date is rejected, so if you cannot establish one from
+    real sourcing, set has_context FALSE instead of guessing.
+  * Lead with that date, then carry the storyline to its CURRENT state: if a prior attempt
+    was struck down, reversed, withdrawn, settled, or has already taken effect, that
+    outcome is the most important fact in the note. "Started in YEAR" alone is a failed
+    note — a 2017 rule that the Supreme Court voided in 2022 is a fundamentally different
+    background than a 2017 rule still in force.
+  * Do not restate the current story, do not speculate, do not explain implications.
 
 Set has_context FALSE when the story is genuinely new, when the only earlier coverage is
-the announcement of this same event, or when you cannot find real prior reporting. A story
-with no history should get no note. Be strict and factual: ignore loosely-related or
-generic matches, base every claim on what you actually found (web) or were given (prior
-articles), and never invent sources.
+the announcement of this same event, when the earliest reporting is under ~3 months old
+(that is the same news cycle, not a storyline), or when you cannot find real prior
+reporting. A story with no history should get no note. Be strict and factual: ignore
+loosely-related or generic matches, base every claim on what you actually found (web) or
+were given (prior articles), and never invent sources.
+
+Keep any prose before the JSON to two sentences at most; the JSON line is what is used.
 
 End your answer with a single line of JSON (and nothing after it):
-{"has_context": true|false, "summary": "one-sentence background note with dates, or empty",
- "related_indices": [indices of genuinely related PRIOR articles]}"""
+{"has_context": true|false, "summary": "<=200 chars, one sentence, must include the
+ original reporting date, or empty", "related_indices": [indices of genuinely related
+ PRIOR articles]}
+
+GOOD: "CMS first finalized the ASP-22.5% 340B cut on November 1, 2017 (effective Jan 1,
+2018); the Supreme Court voided it 9-0 in June 2022 and CMS repaid $9B in November 2023."
+BAD (no outcome): "340B payment cuts were first finalized by CMS in 2017."
+BAD (no date): "This continues a long-running fight over 340B reimbursement."""
 
 
 def _parse_trailing_json(text: str) -> dict:
@@ -113,8 +138,44 @@ def _parse_trailing_json(text: str) -> dict:
     return {}
 
 
-def assess(client, model: str, org: dict, story: dict, candidates: list[dict]) -> dict | None:
-    """Web-search + prior-DB context for one story. Returns {summary, related, web} or None."""
+# A background note has to say WHEN the storyline was first reported. A bare 4-digit year
+# is the floor we can verify cheaply; anything with a month or full date also matches.
+_YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
+
+
+def _has_original_date(summary: str) -> bool:
+    """True when the note carries an original-publication date we can stand behind."""
+    return bool(_YEAR_RE.search(summary))
+
+
+def _fit(summary: str, max_chars: int) -> str:
+    """Trim to max_chars on a WORD boundary — never mid-word, never mid-year.
+
+    The model is told to stay under the cap; this is the backstop for when it doesn't.
+    Cutting at the last sentence end is preferred so the note still reads as a sentence;
+    otherwise fall back to the last whole word plus an ellipsis. A hard slice is what
+    produced the 2026-08-05 "in June 202" note, so it is never used here.
+    """
+    s = " ".join(summary.split())
+    if len(s) <= max_chars:
+        return s
+    window = s[:max_chars]
+    # Prefer ending on a completed sentence.
+    end = max(window.rfind(". "), window.rfind("; "))
+    if end >= max_chars * 0.6:
+        return window[:end + 1].strip()
+    space = window.rfind(" ")
+    return (window[:space] if space > 0 else window).rstrip(" ,;:—-") + "…"
+
+
+def assess(client, model: str, org: dict, story: dict, candidates: list[dict],
+           max_chars: int = 200, max_tokens: int = 1800) -> dict | None:
+    """Web-search + prior-DB context for one story. Returns {summary, related, web} or None.
+
+    The note is capped at `max_chars` and must contain an original-publication date; a note
+    that has no date is dropped rather than shipped, because an undated "this has history"
+    line gives the reader nothing to anchor on.
+    """
     listing = "\n".join(
         f'[{i}] ({(c.get("published") or c.get("fetched") or "")[:10]}) {c.get("title","")} — '
         f'{(c.get("summary") or "")[:200]}'
@@ -127,7 +188,11 @@ def assess(client, model: str, org: dict, story: dict, candidates: list[dict]) -
         f"PRIOR articles already in our database:\n{listing}"
     )
     try:
-        text, web_sources = client.web_research(model, SYSTEM, prompt, max_tokens=900)
+        # Grounding cannot be combined with forced-JSON output, so the model narrates
+        # before the trailing JSON line and the budget has to cover both. At 900 the JSON
+        # was being cut off mid-string on 2026-08-05 ("...testing in June 202"), which the
+        # lenient parser then shipped as the note. Keep this comfortably above the prose.
+        text, web_sources = client.web_research(model, SYSTEM, prompt, max_tokens=max_tokens)
     except Exception as exc:
         log.warning("additional-context web research failed: %s", exc)
         return None
@@ -141,6 +206,13 @@ def assess(client, model: str, org: dict, story: dict, candidates: list[dict]) -
         summary = (prose[:cut] if cut > 40 else prose).strip()
     has_context = bool(data.get("has_context", bool(summary)))
 
+    # A note with no original-publication date fails the brief — drop it rather than ship
+    # an undated "this has history" line the reader cannot anchor on.
+    if summary and not _has_original_date(summary):
+        log.info("additional-context: dropped undated note for %r", story.get("title", "")[:60])
+        return None
+    summary = _fit(summary, max_chars) if summary else ""
+
     idxs = [i for i in data.get("related_indices", []) if isinstance(i, int) and 0 <= i < len(candidates)]
     related = [{"title": candidates[i].get("title", ""),
                 "url": candidates[i].get("url", ""),
@@ -148,7 +220,9 @@ def assess(client, model: str, org: dict, story: dict, candidates: list[dict]) -
                for i in idxs]
     web = [{"title": s.get("title", ""), "url": s.get("uri", "")} for s in (web_sources or [])][:5]
 
-    if not has_context or (not summary and not related and not web):
+    # The summary IS the note; links alone are not background, and the email only renders
+    # the block when a summary is present, so an empty-summary result is dead weight.
+    if not has_context or not summary:
         return None
     return {"summary": summary, "related": related, "web": web}
 
@@ -166,6 +240,8 @@ def add_context(con, client, cfg, top_stories: list[dict], briefing: dict) -> in
     lookback = int(ac_cfg.get("lookback_days", 120))
     max_candidates = int(ac_cfg.get("max_related", 6))
     max_stories = int(ac_cfg.get("max_stories", 12))
+    max_chars = int(ac_cfg.get("max_chars", 200))
+    max_tokens = int(ac_cfg.get("max_tokens", 1800))
     exclude = {_norm_url(s.get("url", "")) for s in top_stories}
     top_stories = top_stories[:max_stories]
 
@@ -181,7 +257,8 @@ def add_context(con, client, cfg, top_stories: list[dict], briefing: dict) -> in
     for story in top_stories:
         try:
             cands = find_related_prior(con, story, exclude, lookback, max_candidates)
-            result = assess(client, model, org, story, cands)
+            result = assess(client, model, org, story, cands,
+                            max_chars=max_chars, max_tokens=max_tokens)
             if not result:
                 continue
             target = (b_by_url.get(_norm_url(story.get("url", "")))
