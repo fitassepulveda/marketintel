@@ -62,7 +62,7 @@ NAVY = "1F3864"
 HEAD = Font(bold=True, color="FFFFFF", name="Arial")
 HF = PatternFill("solid", start_color=NAVY)
 BODY = Font(name="Arial")
-DEFAULT_TO = "fxs1141@miami.edu"
+DEFAULT_TO = "wef28@miami.edu"
 
 
 # ----- data -----------------------------------------------------------------

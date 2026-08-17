@@ -25,7 +25,7 @@ INK = "#313A45"        # body text
 MUTED = "#6B7480"      # secondary / meta text
 
 # Contacts shown in the feedback footer (same addresses as the test recipient list).
-FEEDBACK_CONTACTS = ["wef28@miami.edu", "fxs1141@miami.edu"]
+FEEDBACK_CONTACTS = ["wef28@miami.edu"]
 
 # Per-area color coding from the PPT palette: (solid chip/bar color, text-on-chip color).
 AREA_COLORS = {

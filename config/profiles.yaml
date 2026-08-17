@@ -45,7 +45,7 @@ profiles:
     title: "S&T Intern"
     display_name: "Mr Sagaseta (President)"
     email: "fxs1141@miami.edu"
-    active: true
+    active: false
 
   - name: "AXS"
     title: ""

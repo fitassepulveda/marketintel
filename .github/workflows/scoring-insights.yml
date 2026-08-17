@@ -37,8 +37,8 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           # Recipient for the insights report. Set this repo variable/secret to
-          # override; defaults to fxs1141@miami.edu in the script.
-          INSIGHTS_EMAIL_TO: ${{ vars.INSIGHTS_EMAIL_TO || 'fxs1141@miami.edu' }}
+          # override; defaults to wef28@miami.edu in the script.
+          INSIGHTS_EMAIL_TO: ${{ vars.INSIGHTS_EMAIL_TO || 'wef28@miami.edu' }}
           INSIGHTS_WINDOW_DAYS: "7"
         run: python scripts/scoring_insights.py
 
