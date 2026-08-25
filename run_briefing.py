@@ -104,6 +104,49 @@ def _is_recent(article: dict, cutoff: datetime) -> bool:
     return fetched is not None and fetched >= cutoff
 
 
+def _force_competitor_area(con, rows: list, bcfg: dict) -> int:
+    """Re-tag stories that name a South Florida competitor into the competitive-intel area,
+    whatever feed carried them.
+
+    The strategy team flagged this in review: "HCA cuts 2026 earnings forecast" landed on a
+    national feed and was filed under national_policy — but HCA is a competitor, so it is
+    competitive intelligence. Ambiguous names (Mount Sinai, Jackson, Baptist, Cleveland
+    Clinic, Memorial) only match when a South Florida geography term appears alongside them,
+    so the New York / Alabama / Ohio / Houston namesakes are not swept in. Runs BEFORE
+    scoring, so the area's key question is the competitive one too. Config-driven; a missing
+    term list simply disables it. Never raises into the run.
+    """
+    area = bcfg.get("competitor_area") or ""
+    strong_terms = [t.lower() for t in (bcfg.get("competitor_terms") or [])]
+    weak_terms = [t.lower() for t in (bcfg.get("competitor_terms_regional") or [])]
+    region_terms = [t.lower() for t in (bcfg.get("competitor_region_terms") or [])]
+    if not area or not (strong_terms or weak_terms):
+        return 0
+    moved = 0
+    for a in rows:
+        if a.get("area") == area:
+            continue
+        hay = f'{a.get("title") or ""} {a.get("summary") or ""}'.lower()
+        hit = next((t for t in strong_terms if t in hay), None)
+        if not hit:
+            weak = next((t for t in weak_terms if t in hay), None)
+            if weak and any(r in hay for r in region_terms):
+                hit = weak
+        if not hit:
+            continue
+        log.info("Area re-tag: %r %s -> %s (matched %r)",
+                 str(a.get("title", ""))[:60], a.get("area"), area, hit)
+        a["area"] = area
+        try:
+            store.set_area(con, a["id"], area)
+        except Exception as exc:          # never let a re-tag break the run
+            log.warning("Could not persist area re-tag for %s (%s)", a.get("id"), exc)
+        moved += 1
+    if moved:
+        con.commit()
+    return moved
+
+
 def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict], dict]:
     settings, weights = cfg["settings"], cfg["weights"]
     now = datetime.now(timezone.utc)
@@ -125,6 +168,9 @@ def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict],
     if settings["briefing"].get("enrich_publish_dates", True):
         _enrich_undated(con, rows, settings["briefing"].get("enrich_timeout_seconds", 10))
     rows = [a for a in rows if _is_recent(a, cutoff)]
+    # A named South Florida competitor makes a story competitive intel regardless of the feed
+    # it arrived on. Done before scoring so the area's key question is the competitive one.
+    _force_competitor_area(con, rows, settings["briefing"])
     if not rows:
         log.info("No articles published within the last %dh.", settings["briefing"]["lookback_hours"])
         return [], [], {}   # (top, runners, dup_map) — main() unpacks a triple
@@ -158,9 +204,13 @@ def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict],
         # still missing, instead of re-scoring the whole pool on every attempt
         # (which is what turned the 2026-07-15 quota outage into a $7+ morning).
         # llm_score 0 with rationale "not scored" is a failed batch, not a score.
+        # A score is reusable only if it came from the CURRENT scoring version — a score
+        # saved under the old whole-number scale is not comparable with a one-decimal one,
+        # and reusing it would freeze that article on the coarse scale forever.
         def _has_saved_score(a) -> bool:
             return (a.get("llm_score") is not None
-                    and (a.get("llm_rationale") or "") not in ("", "not scored"))
+                    and (a.get("llm_rationale") or "") not in ("", "not scored")
+                    and a.get("score_version") == store.SCORE_VERSION)
 
         unscored = [a for a in to_score if not _has_saved_score(a)]
         if len(unscored) < len(to_score):
@@ -264,25 +314,42 @@ def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict],
                      str(dropped.get("title", ""))[:70], absorber["id"],
                      str(absorber.get("title", ""))[:70])
 
-    # Selection: include EVERY story at/above select_threshold (composite), but never
-    # fewer than min_stories nor more than max_stories. Replaces a fixed top-N — a strong
-    # news day surfaces more (up to the cap); a quiet day still shows a baseline. If fewer
-    # than min_stories clear the bar, pad with the next-highest still-qualified (>= the
-    # basic score_threshold floor) items; if none qualify at all, the quiet-day note fires.
+    # TWO-TIER SELECTION (2026-08-25).
+    #   Tier 1 (full story cards): EVERY story at/above select_threshold, capped at
+    #     max_stories. NO PADDING — with min_stories 0 a quiet day simply yields a shorter
+    #     briefing. The old behaviour (pad to min_stories from the score_threshold floor)
+    #     discarded the bar entirely on quiet days and shipped 5.5/10 filler that rendered
+    #     identically to a real top story. Padding is still available by raising
+    #     min_stories, but it is off by default.
+    #   Tier 2 ("Also worth noting", compact headline+link+score): the band between
+    #     secondary_floor and select_threshold — the "fine on a slow news day" class.
+    #     secondary_floor is a HARD floor: below it nothing ships in any section.
+    # kept is sorted desc and `final` is its prefix, so tier 2 is simply the next slice.
     bcfg = settings["briefing"]
     select_threshold = bcfg.get("select_threshold", 90)
-    min_stories = bcfg.get("min_stories", 5)
+    min_stories = bcfg.get("min_stories", 0)
     max_stories = bcfg.get("max_stories", 12)
+    secondary_floor = bcfg.get("secondary_floor", 60)
+    floor_by_area = bcfg.get("secondary_floor_by_area") or {}
+    secondary_max = bcfg.get("secondary_max", 6)
     strong = [a for a in kept if a["composite_score"] >= select_threshold]
-    final = strong[:max_stories] if len(strong) >= min_stories else kept[:min_stories]
-    # The next-closest stories that just missed the cut — surfaced as a title+link+score
-    # comparison list at the bottom of the briefing. kept is sorted desc and `final` is its
-    # prefix, so the runners-up are simply the next slice.
-    runners = kept[len(final):len(final) + 5]
+    final = strong[:max_stories]
+    if len(final) < min_stories:          # opt-in padding; min_stories 0 == never pads
+        final = kept[:min_stories]
+
+    # Tier 2 admission is PER AREA. A competitor hire or promotion earns a glance at 6.0;
+    # a national/payer/AI/reputation item has to beat 7.0 for the same space. One flat floor
+    # filled the section with the general trend pieces the strategy team consistently
+    # rejects, while the local competitor items they explicitly wanted sat at the same score.
+    def _sec_floor(a) -> float:
+        return float(floor_by_area.get(a.get("area"), secondary_floor))
+    runners = [a for a in kept[len(final):]
+               if a["composite_score"] >= _sec_floor(a)][:secondary_max]
     log.info("Prioritization: %d scored, %d above floor(%s), %d after dedup, %d at/above %s "
-             "-> %d selected (min %d / max %d), %d runners-up",
+             "-> %d selected (min %d / max %d), %d also-worth-noting (floor %s)",
              len(to_score), before, weights["score_threshold"], len(kept),
-             len(strong), select_threshold, len(final), min_stories, max_stories, len(runners))
+             len(strong), select_threshold, len(final), min_stories, max_stories,
+             len(runners), floor_by_area or secondary_floor)
     return final, runners, dup_map
 
 
@@ -331,9 +398,16 @@ def _flag_broken_links(stories, timeout: int = 5, max_workers: int = 8) -> None:
 
 def _valid_story(s: dict) -> bool:
     """A synthesized story is usable only if every exec-facing section is present.
-    A story missing 'why it matters' / 'what to consider' must NEVER reach the email."""
+    A story missing 'why it matters' / 'what to consider' must NEVER reach the email.
+
+    what_happened is a LIST of bullets since 2026-08-25 (a string in older briefings), so it
+    is judged on its content: a list of blank strings is empty, however truthy str() makes it.
+    """
+    from src.output.emailer import _bullets
+    if not _bullets(s.get("what_happened")):
+        return False
     return all(str(s.get(k) or "").strip()
-               for k in ("what_happened", "why_it_matters", "watch_next"))
+               for k in ("why_it_matters", "watch_next"))
 
 
 def _reconcile_stories(briefing: dict, top: list[dict]) -> list[dict]:
@@ -502,12 +576,15 @@ def main():
     out_dir.mkdir(exist_ok=True)
 
     # Quiet day: nothing cleared the threshold. Still send a short note so an empty
-    # news day is never indistinguishable from a broken pipeline.
+    # news day is never indistinguishable from a broken pipeline. Since 2026-08-25 the
+    # note also carries the "Also worth noting" tier, so a day with no headline story
+    # still shows the team what moved — without dressing any of it up as a top story.
     if not top:
-        log.info("No stories cleared the threshold — sending a quiet-day note.")
+        log.info("No stories cleared the threshold — sending a quiet-day note (%d lighter "
+                 "item(s) attached).", len(runners or []))
         quiet_html = emailer.render_quiet_html(
             date_h, settings["org"]["name"], settings["briefing"]["lookback_hours"],
-            store.failing_sources(con),
+            store.failing_sources(con), runners=runners,
         )
         (out_dir / f"{run_date}_digest.html").write_text(quiet_html, encoding="utf-8")
         _send_html(settings, f'{settings["briefing"]["subject_prefix"]} — {date_h} (quiet day)',
@@ -520,7 +597,8 @@ def main():
                 "stories": [{"title": a["title"], "area": a["area"], "source": a["source"],
                              "url": a["url"], "llm_score": a.get("llm_score"),
                              "published": a.get("published"), "fetched": a.get("fetched"),
-                             "what_happened": (a.get("summary") or a.get("content") or "")[:300],
+                             # list form, matching synthesis (see emailer._bullets)
+                             "what_happened": [(a.get("summary") or a.get("content") or "")[:300]],
                              "why_it_matters": "", "exposure": "", "watch_next": "",
                              "coverage_label": ""} for a in items],
                 "watch": [], "actions": []}

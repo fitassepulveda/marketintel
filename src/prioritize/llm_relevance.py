@@ -21,8 +21,13 @@ organization's region, and impact on high-value service lines.
 Above all, weight ACTIONABILITY: an item scores higher when it implies a concrete decision,
 response, or plan for the organization's leadership, and lower when it is passive or purely
 informational with no clear action to take.
+USE ONE DECIMAL PLACE. Score to a tenth (e.g. 7.4, 6.8, 8.3), never to a whole number. The
+decimal is not decoration — it is how items that would otherwise all land on the same integer
+get ranked against each other, and it decides which ones are shown. Two items you would both
+call "a 6" are almost never equally relevant: place the stronger one higher within the point.
+Reserve the range above 8.0 for items that genuinely warrant leadership's attention today.
 Respond ONLY with a JSON array, one object per item, in the same order:
-[{"i": <index>, "score": <0-10>, "why": "<one sentence>"}]"""
+[{"i": <index>, "score": <0.0-10.0, one decimal>, "why": "<one sentence>"}]"""
 
 
 def score_batch(client: LLMClient, model: str, org: dict, key_questions: dict,

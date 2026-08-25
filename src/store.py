@@ -9,6 +9,13 @@ from .config import DATA_DIR
 
 DB_PATH = DATA_DIR / "intel.db"
 
+# Bump whenever the scoring prompt or scale changes in a way that makes older saved scores
+# non-comparable. run_briefing only REUSES a saved score stamped with the current version, so
+# a bump costs exactly one re-score of whatever is still inside the lookback window.
+#   1 = original whole-number 0-10 scale
+#   2 = one-decimal 0-10 scale (2026-08-25), so the 6/7 pile-up stops deciding the cut
+SCORE_VERSION = 2
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS articles (
     id INTEGER PRIMARY KEY,
@@ -22,8 +29,12 @@ CREATE TABLE IF NOT EXISTS articles (
     published TEXT,
     fetched TEXT NOT NULL,
     enrichment TEXT,           -- JSON from Yutori (entities, sentiment, ...)
-    llm_score REAL,            -- 0-10 relevance vs the area's key question
+    llm_score REAL,            -- 0-10 relevance, ONE DECIMAL (7.4) since score_version 2.
+                               -- The decimal is the internal precision: the email displays
+                               -- the truncated whole number, the feedback workbook shows this.
     llm_rationale TEXT,
+    score_version INTEGER,     -- prompt/scale version a saved score came from; a score from
+                               -- an older version is not reused (see SCORE_VERSION below)
     composite_score REAL,      -- 0-100 final score
     briefed_on TEXT            -- date it appeared in a briefing (dedup across days)
 );
@@ -54,6 +65,13 @@ def connect() -> sqlite3.Connection:
     cols = [r[1] for r in con.execute("PRAGMA table_info(scouts)").fetchall()]
     if cols and "active" not in cols:
         con.execute("ALTER TABLE scouts ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
+        con.commit()
+    # Migration: add articles.score_version to DBs written before finer-grained scoring.
+    acols = [r[1] for r in con.execute("PRAGMA table_info(articles)").fetchall()]
+    if acols and "score_version" not in acols:
+        con.execute("ALTER TABLE articles ADD COLUMN score_version INTEGER")
+        # Everything already scored came from the whole-number scale.
+        con.execute("UPDATE articles SET score_version=1 WHERE llm_score IS NOT NULL")
         con.commit()
     return con
 
@@ -124,10 +142,20 @@ def set_published(con, article_id: int, published_iso: str):
     con.execute("UPDATE articles SET published=? WHERE id=?", (published_iso, article_id))
 
 
+def set_area(con, article_id: int, area: str):
+    """Re-tag an article's intelligence area (used when a named South Florida competitor
+    appears in a story that arrived on a non-competitor feed), so the DB, the review
+    spreadsheets and the rendered briefing all agree on the tag."""
+    con.execute("UPDATE articles SET area=? WHERE id=?", (area, article_id))
+
+
 def save_scores(con, article_id: int, llm_score: float, rationale: str, composite: float):
+    """Persist a score. Always stamped with the CURRENT SCORE_VERSION — save_scores is only
+    ever called straight after scoring with the current prompt."""
     con.execute(
-        "UPDATE articles SET llm_score=?, llm_rationale=?, composite_score=? WHERE id=?",
-        (llm_score, rationale, composite, article_id),
+        "UPDATE articles SET llm_score=?, llm_rationale=?, composite_score=?, score_version=? "
+        "WHERE id=?",
+        (llm_score, rationale, composite, SCORE_VERSION, article_id),
     )
 
 

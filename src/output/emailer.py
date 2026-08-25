@@ -118,7 +118,7 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
     avg_html = (
         f'<span style="background:{BRAND};color:#fff;font-size:11px;font-weight:bold;'
         f'padding:2px 9px;border-radius:10px;white-space:nowrap">Report relevance '
-        f'{avg:.1f}/10</span> <span style="color:{MUTED};font-size:10px">avg of {len(nums)} '
+        f'{round(avg)}/10</span> <span style="color:{MUTED};font-size:10px">avg of {len(nums)} '
         f'stories</span>'
     ) if avg is not None else ""
 
@@ -149,7 +149,8 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
     for area in ordered_areas:
         bg, ontext = AREA_COLORS.get(area, DEFAULT_AREA_COLOR)
         a_avg = _area_avg(area)
-        avg_txt = f"{a_avg:.1f}" if a_avg >= 0 else "—"
+        # Whole numbers only — the stored one-decimal precision is internal (see _fmt_score).
+        avg_txt = f"{round(a_avg)}" if a_avg >= 0 else "—"
         snap.append(
             f'<span style="background:{bg};color:{ontext};font-size:10px;font-weight:bold;'
             f'padding:2px 8px;border-radius:3px;white-space:nowrap;display:inline-block;'
@@ -200,8 +201,9 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
             f'<p style="margin:0 0 3px;font-size:13px"><b>{title_html}</b>{broken_note}</p>'
             # Defense-in-depth: never render a labeled section with no content (an empty
             # "Why it matters:" in a sent briefing reads as a broken product).
-            + (f'<p {fld}><b>What happened:</b> {escape(s.get("what_happened") or "")}</p>'
-               if str(s.get("what_happened") or "").strip() else "")
+            + (f'<p {fld}><b>What happened:</b></p>'
+               + _bullets_html(s.get("what_happened"), "font-size:12px;color:#333;")
+               if _bullets(s.get("what_happened")) else "")
             + (f'<p {fld}><b>Why it matters:</b> {escape(s.get("why_it_matters") or "")}</p>'
                if str(s.get("why_it_matters") or "").strip() else "")
             + (f'<p {fld}><b>Additional context:</b> {escape(s.get("context") or "")}</p>'
@@ -210,9 +212,11 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
             + '</div>'
         )
 
-    # Also considered — the next stories that just missed the selection cut, for comparison.
+    # "Also worth noting" — the second tier: lighter items that did NOT clear the bar.
+    # Rendered compactly (headline + area + score only), never as story cards, so a slow
+    # news day never dresses filler up as a headline story.
     if runners:
-        parts.append(sec("Also considered — just missed the cut"))
+        parts.append(sec("Also worth noting"))
         for a in runners:
             r_area = a.get("area", "")
             r_bg, r_ontext = AREA_COLORS.get(r_area, DEFAULT_AREA_COLOR)
@@ -239,7 +243,7 @@ def render_html(briefing: dict, date_str: str, org_name: str, failing: list[str]
 
     # Abbreviation footnotes — scan everything visible in the email body.
     blob = " ".join(
-        f'{s.get("title","")} {s.get("what_happened","")} {s.get("why_it_matters","")} '
+        f'{s.get("title","")} {" ".join(_bullets(s.get("what_happened")))} {s.get("why_it_matters","")} '
         f'{(s.get("next_steps","") or s.get("watch_next","")) if show_consider else ""} '
         f'{AREA_LABELS.get(s.get("area",""), "")}'
         for s in stories
@@ -277,12 +281,54 @@ def _fmt_date(value: str | None) -> str:
         return s[:10] if len(s) >= 10 else s
 
 
+def _bullets(value) -> list[str]:
+    """Normalize a story's `what_happened` into a list of bullet strings.
+
+    Since 2026-08-25 synthesis returns an ARRAY of short facts instead of a paragraph.
+    Briefings saved before that (and the --no-llm dev path) hold a plain string, so both
+    forms are accepted: a legacy string becomes a single bullet rather than breaking the
+    render. Blank entries are dropped so an empty section is never labeled.
+    """
+    if value is None:
+        return []
+    if isinstance(value, str):
+        v = value.strip()
+        return [v] if v else []
+    if isinstance(value, (list, tuple)):
+        return [str(x).strip().lstrip("-•*").strip() for x in value if str(x).strip()]
+    v = str(value).strip()
+    return [v] if v else []
+
+
+def _bullets_html(value, style: str = "") -> str:
+    """<ul> of what_happened bullets, or '' when there is nothing to show."""
+    items = _bullets(value)
+    if not items:
+        return ""
+    lis = "".join(f'<li style="margin:0 0 3px">{escape(b)}</li>' for b in items)
+    return (f'<ul style="{style}margin:3px 0 6px;padding-left:18px">{lis}</ul>')
+
+
+def _bullets_text(value) -> list[str]:
+    """Plain-text bullet lines for the text digest."""
+    return [f"    - {b}" for b in _bullets(value)]
+
+
 def _fmt_score(value) -> str:
-    """Format an LLM relevance score (0-10) for display, or '' if missing."""
+    """Format an LLM relevance score for READER display, or '' if missing.
+
+    Scores are stored to one decimal (7.4) — that precision exists to rank items that would
+    otherwise tie, and it is deliberately NOT shown to the reader: a briefing that argues 7.4
+    vs 7.2 in the inbox invites the wrong conversation. The decimal is surfaced only in the
+    feedback/review workbook, where calibrating it is the whole point.
+
+    TRUNCATED, not rounded, so the badge never contradicts the bar: with the cut at 8.0, a
+    7.9 item shows 7 rather than rounding up to an 8 that did not make the briefing.
+    """
     if value is None or value == "":
         return ""
     try:
-        return f"{float(value):g}"
+        return str(int(float(value)))
     except (TypeError, ValueError):
         return ""
 
@@ -301,10 +347,10 @@ def _norm_url(u: str | None) -> str:
 
 
 def _runner_lines_text(runners: list[dict] | None) -> list[str]:
-    """Plain-text 'just missed the cut' comparison list — title, score, link only."""
+    """Plain-text second tier — title, score, link only (never a full story block)."""
     if not runners:
         return []
-    out = ["", "—" * 30, "ALSO CONSIDERED — closest stories that did not make the cut (for comparison):", ""]
+    out = ["", "—" * 30, "ALSO WORTH NOTING:", ""]
     for a in runners:
         sc = _fmt_score(a.get("llm_score"))
         tag = f" (LLM relevance {sc}/10)" if sc else ""
@@ -313,14 +359,14 @@ def _runner_lines_text(runners: list[dict] | None) -> list[str]:
 
 
 def _runners_html(runners: list[dict] | None) -> str:
-    """HTML 'just missed the cut' comparison list — title (linked), score, source only."""
+    """HTML second tier — 'Also worth noting'. Lighter items that did NOT clear the
+    selection bar: headline (linked), score and source only, never a full story card."""
     if not runners:
         return ""
     rows = [
         '<div style="margin-top:30px;border-top:1px solid #ddd;padding-top:14px">'
         '<p style="color:#1F3864;font-size:13px;font-weight:bold;margin:0 0 8px">'
-        'Also considered — closest stories that didn\'t make the cut '
-        '<span style="color:#888;font-weight:normal">(for comparison)</span></p>'
+        'Also worth noting</p>'
     ]
     for a in runners:
         sc = _fmt_score(a.get("llm_score"))
@@ -378,7 +424,7 @@ def render_digest(stories: list[dict], date_str: str, org_short: str,
             f'[{area_label}]  ·  {src}',
             title_line,
             "",
-            f'* What happened: {s.get("what_happened", "")}',
+            '* What happened:', *_bullets_text(s.get("what_happened")),
             f'* Why it matters to {org_short}: {s.get("why_it_matters", "")}',
             f'* Institutional exposure: {s.get("exposure", "")}',
         ] + (
@@ -461,8 +507,9 @@ def render_digest_html(stories: list[dict], date_str: str, org_short: str,
             f'<span style="color:#888;font-size:12px">&nbsp;&nbsp;{escape(src)}</span></p>'
             f'<h2 style="font-size:21px;color:#1F3864;margin:2px 0 8px">'
             f'{escape(s.get("title", ""))}{score_html}</h2>'
-            f'<p style="margin:5px 0"><b>What happened:</b> {escape(s.get("what_happened", ""))}</p>'
-            f'<p style="margin:5px 0"><b>Why it matters to {escape(org_short)}:</b> '
+            f'<p style="margin:5px 0 2px"><b>What happened:</b></p>'
+            + _bullets_html(s.get("what_happened"))
+            + f'<p style="margin:5px 0"><b>Why it matters to {escape(org_short)}:</b> '
             f'{escape(s.get("why_it_matters", ""))}</p>'
             f'<p style="margin:5px 0"><b>Institutional exposure:</b> {escape(s.get("exposure", ""))}</p>'
             # Hidden when show_consider is False (config: briefing.show_consider_section).
@@ -480,7 +527,8 @@ def render_digest_html(stories: list[dict], date_str: str, org_short: str,
 
 
 def render_quiet_html(date_str: str, org_name: str, lookback_hours: int,
-                      failing: list[str] | None = None) -> str:
+                      failing: list[str] | None = None,
+                      runners: list[dict] | None = None) -> str:
     """Short 'nothing material today' note — sent so a quiet day isn't silent."""
     days = max(1, round(lookback_hours / 24))
     parts = [
@@ -493,6 +541,9 @@ def render_quiet_html(date_str: str, org_name: str, lookback_hours: int,
         '<p style="color:#666;font-size:12px">This is an automated note confirming the '
         'briefing ran; it is not a delivery error.</p>',
     ]
+    # A quiet day still shows what moved — as the compact second tier, never as stories.
+    if runners:
+        parts.append(_runners_html(runners))
     if failing:
         parts.append(
             '<p style="color:#A33;font-size:12px">Note: these sources have returned nothing '

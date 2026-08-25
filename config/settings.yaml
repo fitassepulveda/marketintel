@@ -223,7 +223,11 @@ briefing:
     RESEARCH funding/policy color and general research/clinical-trial-policy items (relevant to
     UHealth's research arm but mid for a STRATEGY audience; ~5). Surface when quiet; not high on
     their own. NOTE: CYBERSECURITY / patient-data breaches are NOT a Strategy-team function —
-    they matter to other stakeholders, so keep them low (awareness only, not a priority here).
+    they matter to other stakeholders. Score them 4-5 (awareness only, never a priority on their
+    own). ONE EXCEPTION (2026-08-25): a breach, ransomware hit, or outage at a SOUTH FLORIDA
+    COMPETITOR is competitive intelligence, not IT news — a rival's operational disruption is
+    strategically readable (diverted volume, reputational damage, delayed projects), so score
+    those on the competitive-footprint vector like any other competitor event.
 
     LOW (1-4): not actionable; general market/industry trends; third-party disputes without
     direct UHealth impact; routine forecasts with no active threat; opinion pieces; awareness-only.
@@ -275,8 +279,8 @@ briefing:
     - "Florida Coast Medical Center advances orthopedic surgery with OrthoGrid Hip AI" -> 5: NOT
       a true South Florida competitor — 6 was generous; vendor-adoption news at a non-competitor
       is slow-day at most.
-    - "Healthcare ransomware attacks up 14%" -> 3: cybersecurity is not a strategy-team function
-      (reaffirms the existing cybersecurity rule — keep these low).
+    - "Healthcare ransomware attacks up 14%" -> 4: cybersecurity is not a strategy-team function
+      (reaffirms the existing cybersecurity rule — awareness band, 4-5, never higher).
     - "Indiana hospital credits expanded services to employee health insurance switch" -> 2:
       out-of-state insurance/policy mechanics don't transfer — healthcare policy and insurance
       differ by state; not relevant to UHealth.
@@ -409,8 +413,11 @@ briefing:
       human-interest; does nothing for strategic direction.
     - "Florida DOH issues warning on a dangerous opioid" -> 3: routine local public-health
       awareness, not strategic.
-    - "IRhythm discloses patient data stolen via a third-party app" -> 6: cybersecurity / patient-
-      data awareness — keep an eye on; fine on a slow day, not high.
+    - "IRhythm discloses patient data stolen via a third-party app" -> 5: cybersecurity / patient-
+      data awareness at a VENDOR — keep an eye on; fine on a slow day, never higher.
+    - "Ransomware forces Baptist Health to divert patients for three days" -> 8: the exception —
+      a cyber event AT A SOUTH FLORIDA COMPETITOR is competitive intelligence (diverted volume,
+      reputational damage), scored on the competitive vector, not as IT news.
     - "CBO asks for more No Surprises Act research" -> 5: research-policy color; mildly relevant
       (UHealth is a research institution), slow-day awareness only.
 
@@ -503,8 +510,87 @@ briefing:
   # that SHOULD appear. With the rubric now pushing non-actionable items down to <=6 and
   # max_stories capping volume at 12, an 8/10 bar yields a clean strategy-grade 8-10 report.
   select_threshold: 80
-  min_stories: 5
+  # 2026-08-25: NO PADDING. min_stories 0 means the top section holds ONLY stories that
+  # actually clear select_threshold. Before this, a day with <5 qualifiers threw the bar
+  # away entirely and padded from score_threshold (55 == LLM 5.5) — which is how the
+  # 08-13/08-17 briefings shipped 5-6 "top stories" that topped out at 7/10. The briefing
+  # is now variable-length and its length is itself a signal: a one-story day says
+  # something true about the day. Padding stays configurable (raise min_stories to
+  # restore it), but the default is off.
+  min_stories: 0
   max_stories: 12
+  # SECOND TIER — "Also worth noting". Lighter items that did NOT clear the bar but are
+  # worth a glance (the "fine on a slow news day" class the strategy team kept flagging in
+  # review: competitor physician hires, leadership transitions, general M&A trend pieces).
+  # Rendered compactly (headline + source + score), never as full story cards, so filler
+  # can never masquerade as a headline story.
+  # secondary_floor is a HARD floor in composite points (60 == LLM 6.0): nothing below it
+  # ships in ANY section, so genuine noise is dropped rather than demoted.
+  secondary_floor: 70          # default floor for tier 2 (composite; 70 == LLM 7.0)
+  secondary_max: 6
+  # PER-AREA tier-2 floors (2026-08-25). One flat floor put the wrong things in the section:
+  # over 14 days the 6-7 band was 33 national-policy items to 20 competitor ones, and general
+  # national/trend pieces are the class the strategy team rejects most often — while the local
+  # competitor items they explicitly asked for ("key hiring by biggest competitor... 6 is
+  # perfect") sat at the same score. So a competitor item earns a glance at 6.0; everything
+  # else has to beat 7.0 for the same space. Areas not listed fall back to secondary_floor.
+  secondary_floor_by_area:
+    south_florida_competitive: 60
+    national_policy: 70
+    payer_insurance: 70
+    innovation_ai: 70
+    public_health_risk: 70
+    reputation_media: 70
+
+  # COMPETITOR AREA FORCING (2026-08-25). A story about a named South Florida competitor IS
+  # competitive intelligence, whatever feed carried it. "HCA cuts 2026 earnings forecast"
+  # arrived on a national feed and was tagged national_policy; the strategy team flagged it
+  # in review — "this is South Florida Competitive intel, HCA is a competitor". The area tag
+  # also picks the key question used at scoring time, so the re-tag happens BEFORE scoring.
+  competitor_area: south_florida_competitive
+  # Unambiguous names — a match anywhere in title/summary forces the tag on its own.
+  competitor_terms:
+    - "Baptist Health South Florida"
+    - "Baptist Health Miami"
+    - "Miami Cancer Institute"
+    - "Miami Neuroscience Institute"
+    - "Jackson Health"
+    - "Jackson Memorial"
+    - "Cleveland Clinic Florida"
+    - "Cleveland Clinic Weston"
+    - "Memorial Healthcare System"
+    - "Memorial Regional"
+    - "Broward Health"
+    - "Holy Cross Health"
+    - "Nicklaus Children"
+    - "HCA Florida"
+    - "Mount Sinai Medical Center"
+  # Ambiguous names that collide with out-of-market institutions (Jackson AL, Mount Sinai NY,
+  # Baptist in other states, Memorial Hermann in Houston, Cleveland Clinic in Ohio). These
+  # force the tag ONLY when a South Florida geography term also appears — the same
+  # verify-the-location discipline the team applies by hand.
+  competitor_terms_regional:
+    - "Baptist Health"
+    - "Mount Sinai"
+    - "Cleveland Clinic"
+    - "HCA"
+    - "Memorial"
+    - "Jackson"
+  competitor_region_terms:
+    - "South Florida"
+    - "Miami"
+    - "Miami-Dade"
+    - "Broward"
+    - "Fort Lauderdale"
+    - "Hollywood, Fla"
+    - "Coral Gables"
+    - "Aventura"
+    - "Doral"
+    - "Weston"
+    - "Pembroke Pines"
+    - "Miami Beach"
+    - "Palm Beach"
+    - "Florida"
   # Top-line takeaways count
   takeaways: 5
   subject_prefix: "Market Intelligence Briefing"
