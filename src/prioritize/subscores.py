@@ -1,8 +1,10 @@
 """Structured sub-score capture.
 
-A second, cheap LLM pass that breaks each candidate article into six universal
-strategic dimensions (each 0-10). These are:
-  - stored as JSON on the article (column `subscores`), and
+A second, cheap LLM pass that breaks each candidate article into the universal
+strategic dimensions (each 0-10) listed in DIMENSIONS below. These are:
+  - stored as JSON on the article (column `subscores`), stamped with
+    SUBSCORE_VERSION so a vector from an older dimension list / prompt is never
+    silently reused, and
   - the raw material for AHP analysis (scripts/ahp.py) and per-executive
     personalization (src/profiles.py).
 
@@ -12,13 +14,16 @@ It ensures its own DB column exists and writes to it directly.
 import json
 import logging
 import sqlite3
+from datetime import datetime, timezone
 
 from src.llm_client import LLMClient, strip_fences
 
 log = logging.getLogger("prioritize.subscores")
 
-# The six universal dimensions, scored for every article regardless of area.
+# The universal dimensions, scored for every article regardless of area.
 # Keep this list stable — AHP and profiles depend on the exact keys/order.
+# CHANGING THIS LIST (or the prompt below) REQUIRES BUMPING SUBSCORE_VERSION,
+# otherwise stored vectors missing the new key silently score 0 on it.
 DIMENSIONS = [
     "financial_impact",       # effect on reimbursement, margins, revenue, cost
     "strategic_impact",       # effect on growth strategy, positioning, long-term planning
@@ -43,6 +48,10 @@ DIMENSION_DESCRIPTIONS = {
     "magnitude": "the size or materiality of the development — dollar amounts, scale, scope",
 }
 
+# Bump whenever DIMENSIONS or SYSTEM changes. Stored sub-scores carrying an older
+# version are treated as absent and re-scored (mirrors store.SCORE_VERSION).
+SUBSCORE_VERSION = 1
+
 SYSTEM = (
     "You analyze news items for a healthcare system's strategic intelligence. "
     "For each item, rate it 0-10 on EACH of these independent dimensions:\n"
@@ -55,12 +64,25 @@ SYSTEM = (
 
 
 def ensure_column(con: sqlite3.Connection):
-    """Add the `subscores` column if an older DB doesn't have it (safe migration)."""
+    """Safe migrations: the `subscores` column, its version stamp, and the
+    per-profile sub-score table. Idempotent — call on every run."""
     cols = [r[1] for r in con.execute("PRAGMA table_info(articles)").fetchall()]
     if "subscores" not in cols:
         con.execute("ALTER TABLE articles ADD COLUMN subscores TEXT")
-        con.commit()
         log.info("Added 'subscores' column to articles table")
+    if "subscores_version" not in cols:
+        con.execute("ALTER TABLE articles ADD COLUMN subscores_version INTEGER")
+        log.info("Added 'subscores_version' column to articles table")
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS profile_subscores (
+            article_id INTEGER NOT NULL,
+            profile    TEXT NOT NULL,        -- profiles.yaml `name`
+            subscores  TEXT NOT NULL,        -- JSON {dimension: 0-10}
+            version    INTEGER NOT NULL,     -- SUBSCORE_VERSION at write time
+            scored_at  TEXT NOT NULL,
+            PRIMARY KEY (article_id, profile)
+        )""")
+    con.commit()
 
 
 def score_batch(client: LLMClient, model: str, org: dict,
@@ -90,8 +112,35 @@ def score_batch(client: LLMClient, model: str, org: dict,
 
 
 def save(con: sqlite3.Connection, article_id: int, subscores: dict):
-    con.execute("UPDATE articles SET subscores=? WHERE id=?",
-                (json.dumps(subscores), article_id))
+    """Save the shared (org-level) vector, stamped with the current version."""
+    con.execute("UPDATE articles SET subscores=?, subscores_version=? WHERE id=?",
+                (json.dumps(subscores), SUBSCORE_VERSION, article_id))
+
+
+def save_for_profile(con: sqlite3.Connection, article_id: int, profile: str,
+                     subscores: dict):
+    """Save a PROFILE-SPECIFIC vector (from a per-profile scoring pass)."""
+    con.execute(
+        "INSERT INTO profile_subscores (article_id, profile, subscores, version, scored_at) "
+        "VALUES (?,?,?,?,?) ON CONFLICT(article_id, profile) DO UPDATE SET "
+        "subscores=excluded.subscores, version=excluded.version, scored_at=excluded.scored_at",
+        (article_id, profile, json.dumps(subscores), SUBSCORE_VERSION,
+         datetime.now(timezone.utc).isoformat()))
+
+
+def load_for_profile(con: sqlite3.Connection, article_id: int, profile: str) -> dict | None:
+    """Current-version profile vector, or None if absent/stale (=> re-score)."""
+    row = con.execute(
+        "SELECT subscores FROM profile_subscores "
+        "WHERE article_id=? AND profile=? AND version=?",
+        (article_id, profile, SUBSCORE_VERSION)).fetchone()
+    return json.loads(row[0]) if row else None
+
+
+def is_current(article: dict) -> bool:
+    """True when the article's stored shared vector is usable as-is."""
+    return bool(article.get("subscores")) and \
+        article.get("subscores_version") == SUBSCORE_VERSION
 
 
 def load_scored(con: sqlite3.Connection) -> list[dict]:

@@ -17,7 +17,7 @@ org:
     Hospital for Special Surgery, UHealth Doral, UHealth Pinecrest, the Kenneth C. Griffin Cancer
     Research Building, Tower renovation, Bascom Palmer Abu Dhabi); academic medicine + RESEARCH ($360M
     funding incl. $178.8M NIH — heavy federal-funding exposure); AI in medicine (200+ projects, top-10%
-    adopter nationally); payer leverage (e.g. an active UnitedHealthcare contract negotiation);
+    adopter nationally); payer leverage and commercial contracting;
     workforce/talent; key partnerships (Jackson Health, HSS, the VA, Siemens, Labcorp).
   region: "South Florida (Miami-Dade, Broward, Palm Beach)"
   timezone: "America/New_York"      # used when scheduling Yutori scouts
@@ -178,10 +178,10 @@ briefing:
       education, academic-medical-center policy. Big financial/strategic exposure — score high.
     - PAYER / REIMBURSEMENT leverage affecting UHealth's own contracts (a major payer's network,
       reimbursement, or denial-policy moves). This is UHealth's payer leverage, NOT pharma/PBM.
-      CURRENT WATCH — UNITEDHEALTH / UNITEDHEALTHCARE: UHealth is in an ACTIVE contract negotiation
-      with United, so score ANY UnitedHealth/UnitedHealthcare/Optum-parent news UP (7-8+), even
-      tangential items (a United AI rollout, a United earnings or policy move) — leadership must
-      stay current on everything United right now. Revisit this once the negotiation concludes.
+      CURRENT WATCH — UNITEDHEALTH / UNITEDHEALTHCARE: score ANY UnitedHealth/UnitedHealthcare/
+      Optum-parent news UP (7-8+), even tangential items (a United AI rollout, a United earnings
+      or policy move). Review this watch periodically and remove it when no longer needed.
+      (Rationale deliberately omitted — this text is sent to the LLM provider on every run.)
     - FLAGSHIP SERVICE LINES — an EXTERNAL policy, reimbursement, competitor, or clinical/tech
       development bearing on: OPHTHALMOLOGY (Bascom Palmer, #1 in US), ONCOLOGY/cancer (Sylvester),
       NEUROLOGY/NEUROSURGERY, UROLOGY (Desai Sethi), TRANSPLANT, CARDIAC, REHAB (Miami Project).
@@ -472,7 +472,7 @@ briefing:
     - "A national health system opens a new ambulatory campus in Aventura / Doral" -> 9: direct
       competition inside UHealth's own expansion zones.
     - "Major payer moves to drop or sharply cut academic-medical-center contracts" -> 8: hits
-      UHealth's reimbursement and payer leverage (cf. the UnitedHealthcare negotiation).
+      UHealth's reimbursement and payer leverage.
     - "Florida moves to cut Medicaid eligibility / DSH payments" -> 8: affects UHealth's patient
       mix, volumes, and margins as the region's academic safety-net-adjacent system.
     - "South Florida nurses unionize / a regional nurse-staffing shortage deepens" -> 7:

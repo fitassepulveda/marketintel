@@ -1,0 +1,58 @@
+# CANDIDATE RSS sources — NOT loaded by the pipeline.
+#
+# Motivation (measured 2026-08-27 over 30 days / 1,836 articles): the live pool is
+# ~50% local TV health segments and contains 0 "real estate", 1 "groundbreaking",
+# 6 "construction", 4 "medical office" and 9 "pharmacy" items. Ambulatory facility
+# development is effectively absent from the inputs, so no scoring change can surface it.
+#
+# All entries are type: rss (no Yutori quota cost).
+#
+# WORKFLOW:
+#   1. python scripts/verify_candidate_feeds.py      # from YOUR terminal — needs network
+#   2. move the ones that PASS into config/sources.yaml under the same area key
+#   3. delete or re-check the ones that fail
+#
+# CONFIDENCE:
+#   confirmed  = URL published on the publisher's own RSS-feeds page
+#   likely     = standard WordPress/CMS feed path for that publisher, unverified
+#   unverified = plausible, needs the script to confirm
+
+south_florida_competitive:
+  # --- ambulatory / outpatient operations (the most on-point additions) ---
+  - name: "Becker's ASC Review"          # confirmed — listed on beckershospitalreview.com/rss-feeds/
+    type: rss
+    url: "https://www.beckersasc.com/feed/"
+  - name: "Becker's Physician Leadership"  # confirmed — physician moves, group affiliations
+    type: rss
+    url: "https://beckershealthcare.go-vip.net/beckersphysicianleadership/feed/"
+
+  # --- commercial real estate & development: the single biggest coverage hole ---
+  - name: "The Real Deal — South Florida"   # likely — dominant SoFla CRE outlet
+    type: rss
+    url: "https://therealdeal.com/miami/feed/"
+  - name: "South Florida Business Journal — Commercial Real Estate"  # unverified
+    type: rss
+    url: "https://www.bizjournals.com/southflorida/news/commercial-real-estate/rss.xml"
+  - name: "Commercial Observer — South Florida"   # unverified
+    type: rss
+    url: "https://commercialobserver.com/location/south-florida/feed/"
+  - name: "Healthcare Design Magazine"           # likely — outpatient facility design/construction
+    type: rss
+    url: "https://healthcaredesignmagazine.com/feed/"
+
+national_policy:
+  - name: "Becker's Hospital CFO Report"   # confirmed — capital, margins, facility economics
+    type: rss
+    url: "https://www.beckershospitalreview.com/finance/feed/"
+  - name: "Health News Florida"            # likely — state health policy, hospital regulation, CON
+    type: rss
+    url: "https://health.wusf.usf.edu/rss.xml"
+
+payer_insurance:
+  # --- pharmacy: the DISPENSING business (pharma/drug items are penalised in his profile) ---
+  - name: "Drug Store News"                # unverified — retail pharmacy operations
+    type: rss
+    url: "https://drugstorenews.com/rss.xml"
+  - name: "Drug Topics"                    # unverified — pharmacy practice, incl. health-system pharmacy
+    type: rss
+    url: "https://www.drugtopics.com/rss"

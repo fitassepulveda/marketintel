@@ -27,6 +27,7 @@ from src import config, store, profiles as P            # noqa: E402
 from src.llm_client import LLMClient                     # noqa: E402
 from src.output import emailer, synthesize               # noqa: E402
 from src.prioritize import subscores                     # noqa: E402
+from src.prioritize import profile_relevance as PR       # noqa: E402
 
 
 def recent_scored_pool(con, lookback_hours: int) -> list[dict]:
@@ -57,6 +58,28 @@ def ensure_subscores(con, client, cfg, pool: list[dict]) -> None:
                 a["subscores"] = json.loads(a["subscores"])
             except Exception:
                 a["subscores"] = {}
+
+
+def ensure_profile_scores(con, client, cfg, profile: dict, pool: list[dict]) -> None:
+    """Score any pool items this profile hasn't been scored on yet, against its
+    role_description. Cached in profile_scores and reused across runs, so the daily
+    marginal cost is only the genuinely new articles."""
+    PR.ensure_table(con)
+    cached = PR.load_all(con, profile["name"])
+    todo = [a for a in pool if a["id"] not in cached]
+    if todo:
+        models = cfg["settings"]["llm"]["models"][cfg["settings"]["llm"]["provider"]]
+        results = PR.score_batch(client, models["scoring"], cfg["settings"]["org"],
+                                 profile, todo)
+        for art, (score, why) in zip(todo, results):
+            PR.save(con, art["id"], profile["name"], score, why)
+            cached[art["id"]] = (score, why)
+        con.commit()
+        print(f"{profile['name']}: scored {len(todo)} new items against their role.")
+    for a in pool:
+        hit = cached.get(a["id"])
+        if hit:
+            a["profile_score"], a["profile_why"] = hit
 
 
 def shared_selection(pool: list[dict], settings: dict) -> list[dict]:
@@ -113,11 +136,15 @@ def main():
     failing = store.failing_sources(con)
 
     def _has_custom(p):
-        return ("subscore_weights" in p) or ("ahp_pairwise" in p)
+        return ("subscore_weights" in p) or ("ahp_pairwise" in p) \
+            or P.uses_semantic_scoring(p)
 
     # Sub-scoring is only needed for profiles that personalize CONTENT; skip it entirely
     # (and its API cost) when every active profile is name-only.
-    if any(_has_custom(p) for p in profs):
+    # Sub-scoring is only needed by profiles that FALL BACK to weighted sub-scores.
+    # A profile with a role_description is scored semantically instead, so it does not
+    # trigger the sub-score pass.
+    if any(_has_custom(p) and not P.uses_semantic_scoring(p) for p in profs):
         ensure_subscores(con, client, cfg, pool)
 
     # Name-only profiles all share ONE synthesized report (identical to the shared
@@ -135,6 +162,11 @@ def main():
     for p in profs:
         greeting_name = p.get("display_name") or p.get("name", "")
         if _has_custom(p):
+            if P.uses_semantic_scoring(p):
+                ensure_profile_scores(con, client, cfg, p, pool)
+            else:
+                for a in pool:
+                    a.pop("profile_score", None)   # don't leak another profile's score
             ranked = P.rank_for_profile(p, weights, pool)
             if not ranked:
                 print(f"{p['name']}: nothing above their threshold today.")

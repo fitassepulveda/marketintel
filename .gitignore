@@ -8,3 +8,6 @@ data/briefings/
 .venv/
 venv/
 .DS_Store
+data/intel.db.pre-migration-*
+data/*.db-journal
+Briefing_ReRank_Comparison_*.html

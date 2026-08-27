@@ -16,6 +16,8 @@ so it stays directly comparable to the global threshold.
 """
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import yaml
 
@@ -75,19 +77,79 @@ def _area_nudge(profile: dict, area: str) -> float:
     return float(overrides[area]) - 7.0
 
 
+# Nudge sizes (points on the 0-100 personal scale).
+KEYWORD_BONUS = 3.0          # per matching interest keyword
+KEYWORD_BONUS_CAP = 6.0      # ...capped, so a keyword-stuffed headline can't run away
+KEYWORD_PENALTY = 5.0        # per matching avoid keyword
+KEYWORD_PENALTY_CAP = 15.0   # a de-prioritised topic should be able to sink a story
+
+
+def _matches(terms: list[str], text: str) -> list[str]:
+    """Terms present in `text` as WHOLE WORDS (or whole phrases).
+
+    Word boundaries matter: plain substring matching made "MOB" hit "mobility",
+    "ASC" hit "Ascension", and — critically — "pharma" hit "pharmacy", which
+    would make a pharma penalty cancel a pharmacy boost.
+    """
+    hits = []
+    for t in terms:
+        t = t.strip().lower()
+        if not t:
+            continue
+        if re.search(rf"(?<!\w){re.escape(t)}(?!\w)", text):
+            hits.append(t)
+    return hits
+
+
 def _keyword_nudge(profile: dict, article: dict) -> float:
-    """+3 if any of the profile's interest keywords appears in title/summary."""
-    interests = [k.lower() for k in (profile.get("keyword_interests") or [])]
-    if not interests:
+    """Net keyword adjustment: interests add, avoid-terms subtract.
+
+    `keyword_interests` -> +KEYWORD_BONUS each (capped)
+    `keyword_avoid`     -> -KEYWORD_PENALTY each (capped)
+    Both are matched on whole words against title + summary.
+    """
+    interests = profile.get("keyword_interests") or []
+    avoid = profile.get("keyword_avoid") or []
+    if not interests and not avoid:
         return 0.0
     text = f'{article.get("title","")} {article.get("summary","")}'.lower()
-    return 3.0 if any(k in text for k in interests) else 0.0
+    bonus = min(len(_matches(interests, text)) * KEYWORD_BONUS, KEYWORD_BONUS_CAP)
+    penalty = min(len(_matches(avoid, text)) * KEYWORD_PENALTY, KEYWORD_PENALTY_CAP)
+    return bonus - penalty
+
+
+def keyword_hits(profile: dict, article: dict) -> tuple[list[str], list[str]]:
+    """(matched interests, matched avoid-terms) — for debugging and dry-run output."""
+    text = f'{article.get("title","")} {article.get("summary","")}'.lower()
+    return (_matches(profile.get("keyword_interests") or [], text),
+            _matches(profile.get("keyword_avoid") or [], text))
 
 
 def personal_composite(profile: dict, article: dict) -> float:
-    rel = personal_relevance(profile, article)          # 0–10
+    """This profile's 0–100 score for an article.
+
+    TWO SOURCES OF RELEVANCE, in priority order:
+
+    1. `article["profile_score"]` — a 0-10 relevance judged by the LLM against this
+       person's `role_description` (src/prioritize/profile_relevance.py). This is the
+       real per-person signal, and it is on the SAME scale as the house composite,
+       so shared thresholds and tier bands keep their meaning.
+    2. Otherwise, the weighted average of the shared org-level sub-scores. Kept as a
+       fallback for profiles with no role_description — but note it re-weights a
+       vector produced without any knowledge of the person, so it moves the ranking
+       far less than the weights suggest.
+
+    Keyword and area nudges apply to both.
+    """
+    ps = article.get("profile_score")
+    rel = float(ps) if ps is not None else personal_relevance(profile, article)
     score = 10.0 * rel + _area_nudge(profile, article["area"]) + _keyword_nudge(profile, article)
     return round(max(0.0, min(score, 100.0)), 1)
+
+
+def uses_semantic_scoring(profile: dict) -> bool:
+    """True when this profile is scored against its own role description."""
+    return bool((profile.get("role_description") or "").strip())
 
 
 def rank_for_profile(profile: dict, weights_cfg: dict, articles: list[dict]) -> list[dict]:

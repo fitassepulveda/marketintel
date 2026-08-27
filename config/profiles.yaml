@@ -53,6 +53,88 @@ profiles:
     email: "axs9248@miami.edu"
     active: true
 
+  # First weighted profile: re-ranks the shared pool toward outpatient network
+  # development rather than mirroring the shared briefing.
+  # INACTIVE until the email address is filled in and a dry run is reviewed.
+  - name: "Rafic"
+    title: "Chief Ambulatory Officer"
+    display_name: "Rafic"
+    email: ""   # TODO: fill in before activating
+    active: false
+    # Scored SEMANTICALLY against this description, the same way the shared briefing is
+    # scored against the org description — not by re-weighting the shared sub-scores.
+    # NOTE: this text is sent to the LLM provider on every run. On an unpaid API tier that
+    # content can be used for training and read by human reviewers, so keep it to the
+    # GENERAL SHAPE of the role: no internal plans, figures, timelines or project names.
+    role_description: >
+      Leads the ambulatory (outpatient) enterprise for an academic health system in South
+      Florida. Owns the outpatient site network — where sites are located, which services
+      occupy them, and how clinic capacity is used. Accountable for outpatient facility
+      development: site selection, real estate, construction, and the capital case for new
+      and renovated facilities across Miami-Dade, Broward and Palm Beach. Also owns
+      outpatient pharmacy operations, primary care access and referral capture into the
+      network, and the operating and staffing models that run ambulatory sites. Screens
+      acquisitions and affiliations that would extend the outpatient footprint.
+      NOT their remit: clinical quality metrics and hospital rankings, research funding,
+      cancer treatment modality strategy, and information-technology or electronic-record
+      programs — those belong to other leaders.
+    relevance_guidance: |
+      Score through this person's lens. Calibration:
+      - A competing health system siting, building, or opening a large outpatient facility
+        or medical office building anywhere in the tri-county area -> 9-10.
+      - Health-system mergers/acquisitions, or a national primary care or retail-clinic
+        platform entering or expanding in South Florida -> 8-9.
+      - Healthcare real estate transactions in the region — land purchases, groundbreakings,
+        distressed commercial property, developer or REIT activity -> 7-8.
+      - Outpatient/retail/specialty pharmacy operations, dispensing models, and pharmacy
+        access programs -> 7-8.
+      - Reimbursement policy that changes where care is delivered (site-neutral payment,
+        place-of-service rules, outpatient vs hospital-based billing) -> 7, because it
+        changes the capital case for a facility.
+      - Care shifting from inpatient to outpatient settings — policy, evidence, or
+        procedure migration -> 6-7.
+      - Competitor physician recruitment or group affiliation that establishes an
+        outpatient presence in the region -> 6-7.
+      - Clinical quality rankings, patient-experience scores, research or grant funding,
+        drug development, pharmaceutical industry news -> 2-3. Another leader owns these.
+      - Electronic health records, IT systems, cybersecurity, digital-front-door and
+        general AI vendor news -> 2-3, unless it directly changes outpatient capacity,
+        scheduling throughput, or physical access to care.
+      - National operational or workforce news with no South Florida or outpatient
+        connection -> 3-4.
+      Proximity is a multiplier, not a category: the same development is far more relevant
+      inside the health system's own service area than several states away.
+    subscore_weights:      # ALL NINE dimensions — omitting one sets it to 0
+      competitive_relevance: 10
+      proximity: 10
+      direct_relevance: 10
+      strategic_impact: 9
+      magnitude: 8
+      financial_impact: 8
+      operational_impact: 8
+      actionability: 8
+      time_sensitivity: 6
+    # Matched as WHOLE WORDS against title + summary. +3 each, capped +6.
+    keyword_interests: [ambulatory, outpatient, medical office building, MOB,
+      ambulatory surgery center, ASC, groundbreaking, construction, land acquisition,
+      real estate, expansion, new campus, merger, acquisition, affiliation,
+      primary care, urgent care,
+      # pharmacy = the DISPENSING business, a live priority (distinct from pharma below)
+      pharmacy, pharmacies, retail pharmacy, specialty pharmacy, outpatient pharmacy,
+      pharmacist, dispensing, 340B,
+      Broward, Miami-Dade, Palm Beach, Doral, Kendall, Aventura, Plantation]
+    # -5 each, capped -15. Whole-word matching keeps "pharma" from hitting "pharmacy".
+    keyword_avoid: [
+      # pharma / drug development — NOT the pharmacy business
+      pharma, pharmaceutical, pharmaceuticals, biotech, biotechnology, drugmaker,
+      drug pricing, drug development, drug trial, clinical trial, clinical trials,
+      biosimilar, PBM, therapeutic, therapeutics, vaccine, oncology drug,
+      # tech / IT
+      Epic, MyChart, EHR, electronic health record, chatbot, chatbots,
+      generative AI, artificial intelligence, machine learning, algorithm,
+      software, cybersecurity, phishing, ransomware, telehealth, digital health,
+      Oracle Health, Anthropic, OpenAI, cloud]
+
 # --- HOW TO PERSONALIZE CONTENT LATER (not active) ---
 # Add either `subscore_weights` (direct 0-10 per dimension) or `ahp_pairwise`
 # (pairwise judgments). The moment a profile has weights, its report re-ranks to that
