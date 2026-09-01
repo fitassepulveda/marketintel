@@ -45,8 +45,8 @@ GitHub → Settings → Developer settings → **Fine-grained tokens** → Gener
 - Copy the token (`github_pat_…`). It only goes into cron-job.org (step 3).
 
 > This token can trigger workflows in this one repo and nothing more. It is
-> separate from the old `ghp_…` token embedded in the repo's git remote — that
-> one should still be rotated (it's stored in plaintext).
+> separate from git auth, which is now SSH — the old `ghp_…` token that used to
+> sit in the remote URL was removed and deleted on GitHub 2026-09-01.
 
 ### 2. Set the watchdog's alert recipient
 Repo → Settings → **Secrets and variables → Actions → New repository secret**:

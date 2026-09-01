@@ -267,7 +267,10 @@ note "prioritization-audience-and-scoring".
   inspect the DB in the sandbox, copy it to /tmp first (it's read-only-ish on the mount).
 - **Python 3.9 on the user's Mac** — every module needs `from __future__ import annotations`
   for `X | None` hints. CI uses 3.12.
-- **GitHub token** is stored in plaintext in the repo's remote URL — recommend rotating.
+- **Git auth is SSH** (`git@github.com:fitassepulveda/marketintel.git`), keyed by
+  `~/.ssh/id_ed25519` on the user's Mac with the passphrase in the macOS keychain. The old
+  plaintext `ghp_` PAT in the remote URL was removed and deleted on GitHub 2026-09-01 — do
+  not reintroduce a token into the remote URL.
 - Stale `.git/index.lock` can block git; `rm -f .git/index.lock` clears it.
 - GitHub Actions auto-pauses a schedule after 60 days of no repo activity. The daily DB
   commit-back counts as activity, so the schedule stays alive on its own.
@@ -284,10 +287,9 @@ note "prioritization-audience-and-scoring".
    `ALERT_EMAIL_TO` repo secret is set to `wef28@miami.edu`. Until then the daily run still
    depends on GitHub's unreliable cron.
 2. Scale competitor scouts beyond Baptist/Jackson (uncapped_sources already lists them).
-3. Rotate the GitHub access token (still plaintext in the remote URL).
-4. Bump the workflow actions off Node 20 (checkout@v4, setup-python@v5, upload-artifact@v4)
+3. Bump the workflow actions off Node 20 (checkout@v4, setup-python@v5, upload-artifact@v4)
    before GitHub removes Node 20 from runners on 2026-09-16.
-5. Remaining hygiene: a small test suite for dedup/window/scoring; watch repo size as the
+4. Remaining hygiene: a small test suite for dedup/window/scoring; watch repo size as the
    binary DB accumulates history (squash or BFG-prune if it ever gets large).
 
 ## Style
