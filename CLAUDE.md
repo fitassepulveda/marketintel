@@ -44,7 +44,7 @@ and emails an HTML digest of the top stories each weekday morning.
   vectors, hard exclusions, deterministic floors, example-calibrated). It lives entirely in
   `config/settings.yaml → briefing.relevance_guidance` — that block is the scoring brain.
   Full inventory in `PRIORITIZATION_CHANGELOG.md`. See "Prioritization (current)" below.
-- All work committed and pushed to `github.com/fitassepulveda/marketintel` (branch `main`).
+- All work committed and pushed to `github.com/kiquefranco/marketintel` (branch `main`).
   NOTE: the CI bot auto-commits `data/intel.db` on each run, so the remote moves ahead often
   — a manual push usually needs `git checkout -- data/intel.db && git pull --no-rebase` first.
 
@@ -267,7 +267,7 @@ note "prioritization-audience-and-scoring".
   inspect the DB in the sandbox, copy it to /tmp first (it's read-only-ish on the mount).
 - **Python 3.9 on the user's Mac** — every module needs `from __future__ import annotations`
   for `X | None` hints. CI uses 3.12.
-- **Git auth is SSH** (`git@github.com:fitassepulveda/marketintel.git`), keyed by
+- **Git auth is SSH** (`git@github.com:kiquefranco/marketintel.git`), keyed by
   `~/.ssh/id_ed25519` on the user's Mac with the passphrase in the macOS keychain. The old
   plaintext `ghp_` PAT in the remote URL was removed and deleted on GitHub 2026-09-01 — do
   not reintroduce a token into the remote URL.
@@ -287,8 +287,12 @@ note "prioritization-audience-and-scoring".
    `ALERT_EMAIL_TO` repo secret is set to `wef28@miami.edu`. Until then the daily run still
    depends on GitHub's unreliable cron.
 2. Scale competitor scouts beyond Baptist/Jackson (uncapped_sources already lists them).
-3. Bump the workflow actions off Node 20 (checkout@v4, setup-python@v5, upload-artifact@v4)
-   before GitHub removes Node 20 from runners on 2026-09-16.
+3. Bump the workflow actions off Node 20 (checkout@v4, setup-python@v5, upload-artifact@v4 —
+   9 refs across 4 workflow files) to releases that declare Node 24. GitHub removes Node 20
+   from runners on **2026-09-23** (not 09-16, corrected 2026-09-01). NOTE: runners already
+   DEFAULT to Node 24 as of 2026-06-16, and every weekday run since has succeeded, so this is
+   hygiene — what ends on 09-23 is the `ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION` opt-out,
+   which this repo never set. Source: github.blog changelog 2025-09-19.
 4. Remaining hygiene: a small test suite for dedup/window/scoring; watch repo size as the
    binary DB accumulates history (squash or BFG-prune if it ever gets large).
 

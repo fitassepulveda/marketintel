@@ -177,7 +177,7 @@ Remaining work is calibration, scaling competitor scouts, and leadership go-live
 ## Setup (5 minutes)
 
 ```bash
-git clone https://github.com/fitassepulveda/marketintel.git && cd marketintel
+git clone https://github.com/kiquefranco/marketintel.git && cd marketintel
 python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env    # then fill in your keys (see below)

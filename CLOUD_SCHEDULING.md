@@ -39,7 +39,7 @@ git push
 
 ### 1. Create a fine-grained Personal Access Token
 GitHub → Settings → Developer settings → **Fine-grained tokens** → Generate new token.
-- **Resource owner / Repository access:** only `fitassepulveda/marketintel`.
+- **Resource owner / Repository access:** only `kiquefranco/marketintel`.
 - **Repository permissions → Actions: Read and write.** (Nothing else.)
 - **Expiration:** pick a date and set a calendar reminder to rotate before it.
 - Copy the token (`github_pat_…`). It only goes into cron-job.org (step 3).
@@ -60,7 +60,7 @@ Sign in at https://cron-job.org (free). Create **two** cron jobs. cron-job.org
 runs on a real timezone, so it handles EDT/EST automatically — no UTC math.
 
 **Job A — Briefing**
-- URL: `https://api.github.com/repos/fitassepulveda/marketintel/actions/workflows/daily-briefing.yml/dispatches`
+- URL: `https://api.github.com/repos/kiquefranco/marketintel/actions/workflows/daily-briefing.yml/dispatches`
 - Method: **POST**
 - Request headers:
   - `Authorization: Bearer github_pat_…` (your token from step 1)
@@ -72,7 +72,7 @@ runs on a real timezone, so it handles EDT/EST automatically — no UTC math.
   trigger call itself ever fails.
 
 **Job B — Watchdog** (catches a failed/missed run and emails you)
-- URL: `https://api.github.com/repos/fitassepulveda/marketintel/actions/workflows/briefing-watchdog.yml/dispatches`
+- URL: `https://api.github.com/repos/kiquefranco/marketintel/actions/workflows/briefing-watchdog.yml/dispatches`
 - Method / headers / body: **same as Job A**.
 - Schedule: **08:12**, days **Mon–Fri**, timezone **America/New_York**.
 
