@@ -299,6 +299,22 @@ def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict],
             kept, weights.get("dedup_title_similarity", 0.90),
             weights.get("dedup_token_overlap", 0.6), seed=history)
         log.info("Dedup: keyword fallback, vs %d briefed history stories", len(history))
+    else:
+        # UNION, NOT FALLBACK (2026-09-01). The keyword rules were only ever reached when
+        # embeddings failed — so a pair the cosine threshold missed shipped twice even
+        # though the cheap local test would have caught it. Two outlets covering one policy
+        # story share few words but the same named measure, and the two Amendment 3 stories
+        # of 2026-08-28 rode that gap into both tiers of the same briefing.
+        # Running the keyword pass over the semantic SURVIVORS costs nothing (local, no API)
+        # and can only remove duplicates the primary pass already kept.
+        kw_kept, kw_absorbed = scoring.dedupe_by_title_track(
+            deduped, weights.get("dedup_title_similarity", 0.90),
+            weights.get("dedup_token_overlap", 0.6), seed=history)
+        if kw_absorbed:
+            for dropped, absorber in kw_absorbed:
+                log.info("Dedup: keyword pass caught %r as a duplicate of %r",
+                         str(dropped.get("title", ""))[:70], str(absorber.get("title", ""))[:70])
+        deduped, absorbed = kw_kept, list(absorbed) + kw_absorbed
     kept = deduped
     kept.sort(key=lambda a: a["composite_score"], reverse=True)  # dedup may reorder
 

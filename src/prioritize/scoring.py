@@ -82,6 +82,21 @@ def semantic_dedupe(articles: list, vectors: list, threshold: float) -> list:
     return kept
 
 
+def _strip_source_suffix(title: str) -> str:
+    """Drop a trailing outlet attribution: "... if Amendment 3 passes - WLRN" -> "... passes".
+
+    Used ONLY for measure extraction. Station names carry numbers of their own — "WPLG
+    Local 10", "NBC 6" — and without this any two stories from one station would share a
+    bogus "measure". Stripping the suffix everywhere was tried and reverted: it made the
+    other rules merge a Baptist hospital opening with an unrelated Baptist gift, and broke
+    a real merge that depended on a shared word. Only a short trailing chunk is removed.
+    """
+    parts = re.split(r"\s+[-–—]\s+", title or "")
+    if len(parts) > 1 and 0 < len(parts[-1].split()) <= 5 and len(parts[0].split()) >= 4:
+        return " ".join(parts[:-1])
+    return title or ""
+
+
 def _norm_title(title: str) -> str:
     """Lowercase, strip punctuation, collapse whitespace — for fuzzy comparison."""
     return " ".join(re.sub(r"[^a-z0-9 ]", " ", (title or "").lower()).split())
@@ -119,8 +134,61 @@ def _sig_tokens(title: str) -> set:
     return {w for w in _norm_title(title).split() if len(w) >= 4 and w not in _DEDUP_STOPWORDS}
 
 
+# NAMED MEASURES (added 2026-09-01). A statute, rule or ballot item is identified by its
+# NUMBER, and the number is the one thing two outlets keep when they reframe everything
+# else: "Florida's public hospitals could lose millions if Amendment 3 passes" and "Public
+# hospitals face cutbacks if Florida property taxes are reduced under Amendment 3" are the
+# same report, but share only 3 distinctive words (overlap 0.30 against a 0.60 gate) — and
+# _sig_tokens threw away the "3", because it drops anything shorter than 4 characters. Both
+# copies shipped in the same briefing, one in the top stories and one in "Also worth noting".
+#
+# A bare numeral is far too ambiguous to match on ("3 ways", "top 10", "26 systems"), so the
+# number is kept WITH THE WORD BEFORE IT — "amendment 3", "hr 1", "cy 2027" — and a shared
+# measure only counts as a match alongside another shared distinctive word. That is the same
+# shape as the shared-dollar-amount rule: a strong identifier plus one corroborating token.
+# Words that make a following number a QUANTITY, a DATE or a LIST POSITION rather than the
+# NAME of a measure: "top 10", "in 2026", "involving 76,000". A measure is named by a noun
+# ("Amendment 3", "HR 1", "CY 2027"), so prepositions and counting words never lead one.
+_MEASURE_LEAD_STOPWORDS = {
+    "top", "best", "first", "next", "last", "these", "those", "another",
+    "in", "on", "at", "of", "to", "for", "by", "from", "with", "and", "the",
+    "up", "down", "over", "under", "about", "nearly", "than", "plus", "involving",
+    "including", "is", "are", "was", "were", "has", "have", "had", "adds", "hits",
+}
+
+
+def _measure_tokens(text: str) -> set:
+    """Word+number pairs naming a measure, e.g. {'amendment 3', 'hr 1', 'cy 2027'}.
+
+    Applied to TITLES ONLY. Summaries are full of incidental numbers ("in 2026",
+    "involving 76,000 workers") that are quantities, not names.
+
+    Matched on the normalized title (punctuation stripped), so "H.R. 1", "HR 1" and
+    "Amendment 3," all normalize the same way. Leading words that make a number a list
+    position rather than a name ("top 10") are excluded.
+    """
+    out = set()
+    for lead, num in re.findall(r"\b([a-z]{2,})\s+(\d{1,4})\b",
+                                _norm_title(_strip_source_suffix(text))):
+        if lead in _MEASURE_LEAD_STOPWORDS:
+            continue
+        out.add(f"{lead} {num}")
+    return out
+
+
 def _same_event(a: dict, b: dict, title_threshold: float, token_overlap: float) -> bool:
     ta, tb = a.get("title", ""), b.get("title", "")
+    # VETO FIRST: the same kind of measure carrying DIFFERENT numbers means these are
+    # different measures, however alike the wording ("Amendment 3" vs "Amendment 5",
+    # "CY 2027 rule" vs "CY 2026 rule", "phase 2" vs "phase 3"). Without this the
+    # distinctive-word test in (3) below merges them, since everything except the number
+    # is identical — the number is exactly what the old tokenizer was throwing away.
+    ma_all, mb_all = _measure_tokens(ta), _measure_tokens(tb)
+    for lead in {m.split()[0] for m in ma_all} & {m.split()[0] for m in mb_all}:
+        nums_a = {m.split()[1] for m in ma_all if m.startswith(lead + " ")}
+        nums_b = {m.split()[1] for m in mb_all if m.startswith(lead + " ")}
+        if not (nums_a & nums_b):
+            return False
     # 1) Near-identical headline.
     if difflib.SequenceMatcher(None, _norm_title(ta), _norm_title(tb)).ratio() >= title_threshold:
         return True
@@ -133,6 +201,21 @@ def _same_event(a: dict, b: dict, title_threshold: float, token_overlap: float) 
     #    syndicated across feeds with reworded titles (e.g. "Baptist & Amazon One
     #    Medical announce partnership" vs "Amazon One Medical partners with Baptist").
     #    Require >=3 distinctive tokens each so generic short titles can't trivially match.
+    # 2b) Same NAMED MEASURE (statute / rule / ballot item) AND a shared distinctive word.
+    #     Catches two outlets covering one policy story through different frames. The
+    #     corroborating word must not be the measure's own lead word, or "phase 2" would
+    #     corroborate itself and merge two unrelated trials.
+    shared_measures = ma_all & mb_all
+    if shared_measures:
+        # The corroborating word must not be the measure's own lead word (or "phase 2"
+        # corroborates itself) and must not be a bare number (or a shared year corroborates
+        # any two listicles). Station numbers never reach here — _measure_tokens strips the
+        # outlet suffix, so "WPLG Local 10" is not a measure.
+        leads = {m.split()[0] for m in shared_measures}
+        corroborating = {w for w in (_sig_tokens(ta) & _sig_tokens(tb)) - leads
+                         if not w.isdigit()}
+        if corroborating:
+            return True
     sa, sb = _sig_tokens(ta), _sig_tokens(tb)
     if len(sa) >= 3 and len(sb) >= 3:
         if len(sa & sb) / min(len(sa), len(sb)) >= token_overlap:

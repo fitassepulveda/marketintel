@@ -135,6 +135,96 @@ profiles:
       software, cybersecurity, phishing, ransomware, telehealth, digital health,
       Oracle Health, Anthropic, OpenAI, cloud]
 
+
+  # Second semantic profile (2026-09-01): the CLINICAL counterpart to Rafic.
+  # Their priority LISTS overlap heavily; the differentiation is in the TRIGGERS —
+  # Rafic's run to footprint, real estate, capital and pharmacy; these run to quality
+  # methodology, oncology capital and CMS quality-linked reimbursement.
+  # INACTIVE until the email address is filled in and a dry run is reviewed.
+  - name: "Weiss"
+    title: "Chief Medical Officer, Ambulatory"
+    display_name: "Dr. Weiss"
+    email: ""   # TODO: fill in before activating
+    active: false
+    # Scored SEMANTICALLY against this description. NOTE: this text is sent to the LLM
+    # provider on every run — on an unpaid tier it may be used for training and read by
+    # human reviewers. GENERAL SHAPE ONLY: no internal plans, figures, targets, named
+    # projects or performance numbers. Named programs live in keyword_interests below,
+    # which are matched locally and never leave the machine.
+    role_description: >
+      Physician executive leading the CLINICAL side of the ambulatory (outpatient)
+      enterprise at an academic health system in South Florida, while also chairing a
+      clinical academic department. Owns clinical strategy and clinical quality across all
+      outpatient care — what care is delivered at each site, how good it is, how it is
+      measured, and how it ranks. Accountable for ambulatory quality and patient-experience
+      performance reported to the board, for standing in national quality rating and
+      ranking programs, and for quality-linked payment programs. Leads cancer treatment
+      strategy — which treatment modalities to grow, shift, defend, partner on or exit —
+      and the clinical service-line programming of outpatient sites: which specialties
+      belong at a satellite site versus the main academic campus. Also sponsors clinical
+      technology and predictive-model adoption in outpatient care, physician engagement,
+      and outpatient access and appointment availability.
+      NOT their remit: real estate, site selection, construction and facility capital
+      cases; outpatient pharmacy operations and retail dispensing; and the administrative
+      operating and staffing models of clinic sites — those belong to another leader.
+    relevance_guidance: |
+      Score through this person's lens. Calibration:
+      - Changes to ambulatory quality measurement or ranking methodology by a rating body,
+        accreditor or national payer — measure specifications, domain weighting, ranking
+        criteria -> 9-10.
+      - Quality-linked physician payment and risk-adjustment policy — physician fee
+        schedule rules, quality-program scoring, risk-adjustment and coding guidance -> 8-9.
+      - A competing health system committing capital to cancer treatment capacity in the
+        region — radiation vaults, infusion capacity, cell-therapy programs, a new cancer
+        campus, or an oncology partnership -> 8-9.
+      - Evidence, technology or policy moving higher-acuity procedures and recovery from
+        inpatient to outpatient settings -> 8.
+      - A competitor recruiting or affiliating a physician group that establishes a
+        clinical presence in the region -> 7-8.
+      - Outpatient quality or patient-experience standards introduced by a regulator,
+        payer or competitor -> 7.
+      - Ambulatory expansion by a competing system in the tri-county area -> 7, for the
+        clinical programming and service-line response it demands.
+      - Clinical technology adopted in outpatient care WITH credible peer-reviewed or
+        academic-center evidence — scheduling and no-show prediction, clinical decision
+        support -> 6-7. Vendor announcements without evidence -> 3-4.
+      - Real estate transactions, land purchases, groundbreakings, construction costs and
+        facility capital cases -> 2-3. Another leader owns these.
+      - Retail and specialty pharmacy operations, dispensing models, pharmacy supply chain
+        and drug pricing -> 2-3. Another leader owns these.
+      - Pharmaceutical industry and drug-development news with no bearing on how outpatient
+        cancer care is organized and delivered -> 2-3.
+      - National operational or workforce news with no South Florida, clinical-quality or
+        outpatient-care connection -> 3-4.
+      Proximity is a multiplier, not a category: the same development is far more relevant
+      inside the health system's own service area than several states away.
+    # Matched as WHOLE WORDS against title + summary. +3 each, capped +6. Never sent to the LLM.
+    keyword_interests: [
+      # quality, rankings, accreditation
+      Vizient, USNWR, U.S. News, MIPS, HCC, risk adjustment, quality measure,
+      quality measures, star ratings, accreditation, patient safety, patient experience,
+      readmission, readmissions,
+      # CMS / quality-linked reimbursement
+      Physician Fee Schedule, CMS, Medicare, value-based, quality reporting,
+      # oncology and modality
+      oncology, cancer center, radiation, proton, photon, infusion, CAR-T, vault,
+      chemotherapy, radiotherapy, cancer program,
+      # clinical care model
+      ambulatory, outpatient, specialty care, primary care, clinical trial, access to care,
+      physician recruitment, medical group, physician group, affiliation,
+      # geography
+      Broward, Miami-Dade, Palm Beach, Doral, Kendall, Aventura, Plantation]
+    # -5 each, capped -15. Whole-word matched. The mirror image of Rafic's list.
+    keyword_avoid: [
+      # facilities / real estate / capital — another leader's remit
+      real estate, land acquisition, groundbreaking, construction, square feet,
+      medical office building, lease, REIT, developer, capital expenditure, renovation,
+      # pharmacy operations — another leader's remit
+      pharmacy, pharmacies, retail pharmacy, pharmacist, dispensing, 340B, PBM,
+      drug pricing, Walgreens, CVS,
+      # general tech noise
+      chatbot, chatbots, cybersecurity, phishing, ransomware, cloud, software]
+
 # --- HOW TO PERSONALIZE CONTENT LATER (not active) ---
 # Add either `subscore_weights` (direct 0-10 per dimension) or `ahp_pairwise`
 # (pairwise judgments). The moment a profile has weights, its report re-ranks to that
