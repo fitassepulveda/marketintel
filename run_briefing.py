@@ -563,22 +563,27 @@ def _send_personalized(settings, briefing, date_h, failing, dry_run, run_date, o
 
 
 def prioritize_for_profile(con, cfg, client, profile: dict, scored_pool: list[dict]
-                           ) -> tuple[list[dict], dict]:
+                           ) -> tuple[list[dict], list[dict], dict]:
     """A SECOND, independent prioritization over the SAME already-ingested,
     already-house-scored candidate pool (`scored_pool`, straight from `prioritize()`,
     so ingestion and house scoring never run twice) — re-scored against `profile`'s
     role_description instead of the house composite.
 
-    Mirrors `prioritize()`'s ordering (score -> threshold -> dedup -> cap, so a
-    duplicate dropped by dedup can be backfilled from the rest of the pool) but is
-    otherwise independent: a story can land in one list, both, or neither.
+    Mirrors `prioritize()` step for step so the two briefings share one FORMAT:
+      pool floor (weights.score_threshold) -> dedup -> TWO-TIER selection:
+        tier 1, full story cards : at/above the profile's `threshold` (80 = 8.0/10),
+                                   capped at max_stories, no padding unless min_stories;
+        tier 2, "Also worth noting": the band between the per-area secondary floors and
+                                   the bar, capped at secondary_max — same config keys as
+                                   the shared briefing.
+    Dedup runs BEFORE the cap so a dropped duplicate is backfilled, not a hole.
 
-    Returns (final, dup_map): `final` ranked desc by personal_composite and capped to
-    the profile's max_stories; `dup_map` is prioritize()'s absorbed-duplicate map,
-    shaped for mark_briefed.
+    Returns (final, runners, dup_map). `final`/`runners` are ranked desc by
+    personal_composite; `dup_map` is prioritize()'s absorbed-duplicate map for mark_briefed.
     """
     settings, weights = cfg["settings"], cfg["weights"]
     models = settings["llm"]["models"][settings["llm"]["provider"]]
+    bcfg = settings["briefing"]
     # active_profiles() normally sets this; these dicts come from load_profiles() so that
     # identically-configured profiles can be grouped BEFORE per-profile setup. Only used
     # by personal_composite()'s fallback path, but cheap insurance against a KeyError.
@@ -609,7 +614,12 @@ def prioritize_for_profile(con, cfg, client, profile: dict, scored_pool: list[di
                         profile["name"], unscored)
 
     # Work on COPIES: these dicts are the same objects the house pipeline holds in `top`,
-    # and this pass's scores must never leak into the shared briefing.
+    # and this pass's scores must never leak into the shared briefing. On the copies,
+    # overwrite the house score fields with THIS lens's values, because everything
+    # downstream reads them: the synthesis prompt echoes score= and the relevance
+    # rationale, _reconcile_stories copies llm_score onto each card, and the email's
+    # score badges, "Report relevance" average and tier-2 lines all display llm_score.
+    # Without this a story in the 8+ section could carry the house's "5/10" badge.
     pool = []
     for a in scored_pool:
         hit = cached.get(a["id"])
@@ -617,23 +627,30 @@ def prioritize_for_profile(con, cfg, client, profile: dict, scored_pool: list[di
             continue
         b = dict(a)
         b["profile_score"], b["profile_why"] = hit
+        b["llm_rationale"] = hit[1]
         b["personal_composite"] = profiles_mod.personal_composite(profile, b)
+        b["composite_score"] = b["personal_composite"]
+        # The badge must be the SAME number the tier is decided on. personal_composite
+        # includes the profile's keyword nudges (+3 per interest, capped +6), which can
+        # lift a 7.5 into the 8+ section — showing the raw 7.5 there would contradict
+        # the bar, which the house briefing never does (see emailer._fmt_score).
+        b["llm_score"] = round(b["personal_composite"] / 10.0, 1)
         pool.append(b)
 
-    # 2. Threshold on this profile's own scale — semantic relevance x10, the same scale as
-    #    the house composite, so a shared threshold keeps its meaning (docs/PROFILES.md).
-    threshold = float(profile.get("threshold", weights.get("score_threshold", 55)))
-    above = sorted((a for a in pool if a["personal_composite"] >= threshold),
+    # 2. Pool floor — the same score_threshold the house uses to decide what is even a
+    #    candidate. Applied BEFORE dedup, same ordering as prioritize().
+    pool_floor = float(weights.get("score_threshold", 55))
+    above = sorted((a for a in pool if a["personal_composite"] >= pool_floor),
                    key=lambda a: a["personal_composite"], reverse=True)
     if not above:
-        log.info("%s: %d candidates scored, none at/above %s.",
-                 profile["name"], len(pool), threshold)
-        return [], {}
+        log.info("%s: %d candidates scored, none at/above the %s pool floor.",
+                 profile["name"], len(pool), pool_floor)
+        return [], [], {}
 
     # 3. Dedup against today's own duplicates AND recently-briefed history — same
     #    embeddings-primary / keyword-union approach as prioritize().
     now = datetime.now(timezone.utc)
-    hist_days = settings["briefing"].get("dedup_history_days", 60)
+    hist_days = bcfg.get("dedup_history_days", 60)
     pool_ids = {a["id"] for a in above}
     history = []
     if hist_days:
@@ -662,19 +679,35 @@ def prioritize_for_profile(con, cfg, client, profile: dict, scored_pool: list[di
         deduped, absorbed = kw_kept, list(absorbed) + kw_absorbed
     deduped.sort(key=lambda a: a["personal_composite"], reverse=True)
 
-    # 4. Cap AFTER dedup, so a dropped duplicate is backfilled rather than leaving a hole.
-    max_stories = int(profile.get("max_stories", 12))
-    final = deduped[:max_stories]
-    log.info("%s: %d candidates scored, %d at/above %s, %d after dedup -> %d selected "
-             "(max %d).", profile["name"], len(pool), len(above), threshold,
-             len(deduped), len(final), max_stories)
+    # 4. TWO-TIER SELECTION — identical shape and config keys to prioritize().
+    select_threshold = float(profile.get("threshold", bcfg.get("select_threshold", 80)))
+    min_stories = int(bcfg.get("min_stories", 0))
+    max_stories = int(profile.get("max_stories", bcfg.get("max_stories", 12)))
+    secondary_floor = float(bcfg.get("secondary_floor", 70))
+    floor_by_area = bcfg.get("secondary_floor_by_area") or {}
+    secondary_max = int(bcfg.get("secondary_max", 6))
+
+    strong = [a for a in deduped if a["personal_composite"] >= select_threshold]
+    final = strong[:max_stories]
+    if len(final) < min_stories:          # opt-in padding; min_stories 0 == never pads
+        final = deduped[:min_stories]
+
+    def _sec_floor(a) -> float:
+        return float(floor_by_area.get(a.get("area"), secondary_floor))
+    runners = [a for a in deduped[len(final):]
+               if a["personal_composite"] >= _sec_floor(a)][:secondary_max]
+
+    log.info("%s: %d candidates scored, %d at/above pool floor %s, %d after dedup, "
+             "%d at/above %s -> %d selected (max %d), %d also-worth-noting.",
+             profile["name"], len(pool), len(above), pool_floor, len(deduped),
+             len(strong), select_threshold, len(final), max_stories, len(runners))
 
     final_ids = {a["id"] for a in final}
     dup_map: dict = {}
     for dropped, absorber in absorbed:
         key = absorber["id"] if absorber["id"] in final_ids else None
         dup_map.setdefault(key, []).append(dropped["id"])
-    return final, dup_map
+    return final, runners, dup_map
 
 
 def _synthesize_for_profile(client, cfg, models, label: str, final: list[dict]):
@@ -805,11 +838,14 @@ def _send_semantic_profiles(con, cfg, client, use_llm, scored_pool, date_h, dry_
         rep = members[0]     # scoring config is identical across the group
         label = "/".join(p["name"] for p in members)
         try:
-            final, dup_map = prioritize_for_profile(con, cfg, client, rep, scored_pool)
+            final, runners, dup_map = prioritize_for_profile(con, cfg, client, rep, scored_pool)
         except Exception as exc:
             log.error("%s: profile scoring failed (%s) — skipping this group.", label, exc)
             continue
         if not final:
+            # No padding, same as the shared briefing. (A role-quiet day with only tier-2
+            # items sends nothing — render_quiet_html has no greeting, and a profile
+            # briefing without one would be a third format.)
             continue        # prioritize_for_profile already logged why
 
         briefing, final = _synthesize_for_profile(client, cfg, models, label, final)
@@ -825,7 +861,8 @@ def _send_semantic_profiles(con, cfg, client, use_llm, scored_pool, date_h, dry_
         for p in members:
             greeting = p.get("display_name") or p.get("name", "")
             html = emailer.render_html(briefing, date_h, org_name, failing,
-                                       greeting=greeting, show_consider=show_consider)
+                                       greeting=greeting, runners=runners,
+                                       show_consider=show_consider)
             tag = (p.get("name", "profile").split() or ["profile"])[0].lower()
             (out_dir / f"{run_date}_{tag}.html").write_text(html, encoding="utf-8")
             if dry_run or not smtp_ready or not p.get("email"):
