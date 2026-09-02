@@ -18,10 +18,12 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from src import config, store
+from src import profiles as profiles_mod
 from src.ingest import rss, yutori, enrich
 from src.llm_client import LLMClient
 from src.output import emailer, synthesize
 from src.prioritize import llm_relevance, scoring
+from src.prioritize import profile_relevance as PR
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("run")
@@ -147,7 +149,7 @@ def _force_competitor_area(con, rows: list, bcfg: dict) -> int:
     return moved
 
 
-def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict], dict]:
+def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict], dict, list[dict]]:
     settings, weights = cfg["settings"], cfg["weights"]
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=settings["briefing"]["lookback_hours"])
@@ -173,7 +175,7 @@ def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict],
     _force_competitor_area(con, rows, settings["briefing"])
     if not rows:
         log.info("No articles published within the last %dh.", settings["briefing"]["lookback_hours"])
-        return [], [], {}   # (top, runners, dup_map) — main() unpacks a triple
+        return [], [], {}, []   # (top, runners, dup_map, scored_pool) — main() unpacks a quadruple
 
     # No keyword influence anywhere. The LLM scores every recent article for relevance
     # to the org (against its area's key question). Order by recency (neutral), then
@@ -366,7 +368,7 @@ def prioritize(con, cfg, client, use_llm: bool) -> tuple[list[dict], list[dict],
              len(to_score), before, weights["score_threshold"], len(kept),
              len(strong), select_threshold, len(final), min_stories, max_stories,
              len(runners), floor_by_area or secondary_floor)
-    return final, runners, dup_map
+    return final, runners, dup_map, to_score
 
 
 def _flag_broken_links(stories, timeout: int = 5, max_workers: int = 8) -> None:
@@ -529,8 +531,10 @@ def _send_personalized(settings, briefing, date_h, failing, dry_run, run_date, o
     True if at least one real email was sent, or False if profiles exist but nothing was
     sent (dry run / SMTP not ready) — so dedup is only consumed on a real send.
     """
-    from src import profiles as profiles_mod
-    profs = profiles_mod.active_profiles()
+    # Semantic (role_description) profiles are scored + sent separately by
+    # _send_semantic_profiles -- exclude them here so they don't ALSO get this
+    # shared-content, name-only copy.
+    profs = [p for p in profiles_mod.active_profiles() if not profiles_mod.uses_semantic_scoring(p)]
     if not profs:
         return None
     org_name = settings["org"]["name"]
@@ -558,7 +562,295 @@ def _send_personalized(settings, briefing, date_h, failing, dry_run, run_date, o
     return sent_any
 
 
+def prioritize_for_profile(con, cfg, client, profile: dict, scored_pool: list[dict]
+                           ) -> tuple[list[dict], dict]:
+    """A SECOND, independent prioritization over the SAME already-ingested,
+    already-house-scored candidate pool (`scored_pool`, straight from `prioritize()`,
+    so ingestion and house scoring never run twice) — re-scored against `profile`'s
+    role_description instead of the house composite.
+
+    Mirrors `prioritize()`'s ordering (score -> threshold -> dedup -> cap, so a
+    duplicate dropped by dedup can be backfilled from the rest of the pool) but is
+    otherwise independent: a story can land in one list, both, or neither.
+
+    Returns (final, dup_map): `final` ranked desc by personal_composite and capped to
+    the profile's max_stories; `dup_map` is prioritize()'s absorbed-duplicate map,
+    shaped for mark_briefed.
+    """
+    settings, weights = cfg["settings"], cfg["weights"]
+    models = settings["llm"]["models"][settings["llm"]["provider"]]
+    # active_profiles() normally sets this; these dicts come from load_profiles() so that
+    # identically-configured profiles can be grouped BEFORE per-profile setup. Only used
+    # by personal_composite()'s fallback path, but cheap insurance against a KeyError.
+    profile.setdefault("_weights", profiles_mod.dimension_weights(profile))
+
+    # 1. Relevance judged against THIS role. Cached in profile_scores by
+    #    (article, profile, version), so a same-day re-run only pays for new articles.
+    PR.ensure_table(con)
+    cached = PR.load_all(con, profile["name"])
+    todo = [a for a in scored_pool if a["id"] not in cached]
+    if todo:
+        results = PR.score_batch(client, models["scoring"], settings["org"], profile, todo)
+        for art, (score, why) in zip(todo, results):
+            PR.save(con, art["id"], profile["name"], score, why)
+            cached[art["id"]] = (score, why)
+        con.commit()
+
+    # Work on COPIES: these dicts are the same objects the house pipeline holds in `top`,
+    # and this pass's scores must never leak into the shared briefing.
+    pool = []
+    for a in scored_pool:
+        hit = cached.get(a["id"])
+        if not hit:
+            continue
+        b = dict(a)
+        b["profile_score"], b["profile_why"] = hit
+        b["personal_composite"] = profiles_mod.personal_composite(profile, b)
+        pool.append(b)
+
+    # 2. Threshold on this profile's own scale — semantic relevance x10, the same scale as
+    #    the house composite, so a shared threshold keeps its meaning (docs/PROFILES.md).
+    threshold = float(profile.get("threshold", weights.get("score_threshold", 55)))
+    above = sorted((a for a in pool if a["personal_composite"] >= threshold),
+                   key=lambda a: a["personal_composite"], reverse=True)
+    if not above:
+        log.info("%s: %d candidates scored, none at/above %s.",
+                 profile["name"], len(pool), threshold)
+        return [], {}
+
+    # 3. Dedup against today's own duplicates AND recently-briefed history — same
+    #    embeddings-primary / keyword-union approach as prioritize().
+    now = datetime.now(timezone.utc)
+    hist_days = settings["briefing"].get("dedup_history_days", 60)
+    pool_ids = {a["id"] for a in above}
+    history = []
+    if hist_days:
+        hist_floor = (now - timedelta(days=hist_days)).isoformat()
+        history = [dict(r) for r in store.briefed_recent(con, hist_floor)
+                   if r["id"] not in pool_ids]
+    deduped, absorbed = None, []
+    if client and (len(above) > 1 or history):
+        try:
+            texts = [f'{a["title"]} {(a.get("summary") or "")[:400]}' for a in above + history]
+            vecs = client.embed(texts)
+            deduped, absorbed = scoring.semantic_dedupe_track(
+                above, vecs[:len(above)], weights.get("dedup_cosine_similarity", 0.85),
+                seed=history, seed_vectors=vecs[len(above):])
+        except Exception as exc:
+            log.warning("%s: embedding dedup failed (%s); falling back to keyword dedup",
+                        profile["name"], exc)
+    if deduped is None:
+        deduped, absorbed = scoring.dedupe_by_title_track(
+            above, weights.get("dedup_title_similarity", 0.90),
+            weights.get("dedup_token_overlap", 0.6), seed=history)
+    else:
+        kw_kept, kw_absorbed = scoring.dedupe_by_title_track(
+            deduped, weights.get("dedup_title_similarity", 0.90),
+            weights.get("dedup_token_overlap", 0.6), seed=history)
+        deduped, absorbed = kw_kept, list(absorbed) + kw_absorbed
+    deduped.sort(key=lambda a: a["personal_composite"], reverse=True)
+
+    # 4. Cap AFTER dedup, so a dropped duplicate is backfilled rather than leaving a hole.
+    max_stories = int(profile.get("max_stories", 12))
+    final = deduped[:max_stories]
+    log.info("%s: %d candidates scored, %d at/above %s, %d after dedup -> %d selected "
+             "(max %d).", profile["name"], len(pool), len(above), threshold,
+             len(deduped), len(final), max_stories)
+
+    final_ids = {a["id"] for a in final}
+    dup_map: dict = {}
+    for dropped, absorber in absorbed:
+        key = absorber["id"] if absorber["id"] in final_ids else None
+        dup_map.setdefault(key, []).append(dropped["id"])
+    return final, dup_map
+
+
+def _synthesize_for_profile(client, cfg, models, label: str, final: list[dict]):
+    """Synthesize + heal a briefing for one profile group, mirroring main()'s chain:
+    enrich -> synthesize -> reconcile (-> one retry) -> link check -> prior-coverage note.
+
+    `_reconcile_stories` is the important one: it restores canonical URLs and score/date
+    meta and drops unmatchable, duplicate or blank cards. Skipping it is what once put a
+    half-finished stub card at the top of a sent briefing (2026-07-09).
+
+    Returns (briefing, final) with `final` trimmed to the articles that actually have a
+    publishable story, or (None, []) if nothing survived.
+    """
+    settings = cfg["settings"]
+    # Deep-dive enrichment for stories THIS pass selected that the shared pass did not
+    # already enrich. Stories shared with the house briefing are the same DB rows, so they
+    # arrive enriched for free; only profile-ONLY stories would cost anything, and at
+    # ~$0.05-0.18 browsing (plus ~$0.35 research) per article that is real money against
+    # the Yutori budget — so it is OPT-IN (yutori.deep_dive.profiles), default off.
+    # With it off, profile-only stories are written from title + summary.
+    if (cfg["settings"].get("yutori", {}).get("deep_dive", {}) or {}).get("profiles", False):
+        unenriched = [a for a in final if not a.get("full_text")]
+        if unenriched:
+            try:
+                from src.ingest import deep_dive
+                deep_dive.enrich_stories(unenriched, cfg)
+            except Exception as exc:
+                log.warning("%s: deep-dive enrichment skipped (%s)", label, exc)
+
+    def _build(items):
+        return synthesize.build_briefing(
+            client, models["synthesis"], settings["llm"]["max_tokens_synthesis"],
+            settings["org"], settings["key_questions"], items,
+            style=settings["briefing"].get("synthesis_style", ""))
+
+    try:
+        briefing = _build(final)
+    except Exception as exc:
+        log.error("%s: synthesis failed (%s) — skipping this group.", label, exc)
+        return None, []
+
+    missing = _reconcile_stories(briefing, final)
+    if missing:
+        log.warning("%s: %d item(s) came back without a valid story — retrying those.",
+                    label, len(missing))
+        try:
+            extra = _build(missing)
+            still_missing = _reconcile_stories(extra, missing)
+            briefing["stories"].extend(extra["stories"])
+        except Exception as exc:
+            log.warning("%s: retry synthesis failed (%s)", label, exc)
+            still_missing = missing
+        if still_missing:
+            gone = {a["id"] for a in still_missing}
+            log.error("%s: dropping %d story(ies) that could not be synthesized.",
+                      label, len(still_missing))
+            final = [a for a in final if a["id"] not in gone]
+    if not final or not briefing.get("stories"):
+        log.error("%s: nothing publishable after reconciliation — not sending.", label)
+        return None, []
+
+    try:
+        _flag_broken_links(briefing["stories"])
+    except Exception as exc:
+        log.warning("%s: link-health check skipped (%s)", label, exc)
+    return briefing, final
+
+
+def _send_semantic_profiles(con, cfg, client, use_llm, scored_pool, date_h, dry_run,
+                            run_date, out_dir) -> bool:
+    """Ambulatory Leadership Prioritization (2026-09-02): the delivery half of the second
+    prioritization pass, for every ACTIVE profile that defines a role_description.
+
+    Profiles whose scoring config is IDENTICAL (role_description, relevance_guidance,
+    keyword lists, threshold, max_stories) are grouped, so the LLM scoring and synthesis
+    passes run ONCE per distinct configuration rather than once per person — the three
+    "Ambulatory-*" profiles share one pass and differ only in the greeting. Note the
+    profile_scores cache is keyed by the GROUP REPRESENTATIVE's name, so removing that
+    one profile makes the next run re-score the pool once under the new representative.
+
+    Returns True if at least one real email was sent. mark_briefed for this pass's own
+    stories is handled here, independently of the shared pipeline's own stamping.
+    """
+    if not use_llm or client is None:
+        return False
+    settings = cfg["settings"]
+    all_profiles, defaults = profiles_mod.load_profiles()
+    semantic = []
+    for raw in all_profiles:
+        p = {**defaults, **raw}
+        if p.get("active") and profiles_mod.uses_semantic_scoring(p):
+            semantic.append(p)
+    if not semantic:
+        return False
+
+    def _sig(p):
+        return (p.get("role_description", ""), p.get("relevance_guidance", ""),
+                tuple(p.get("keyword_interests") or []), tuple(p.get("keyword_avoid") or []),
+                p.get("threshold"), p.get("max_stories"))
+
+    groups: dict = {}
+    for p in semantic:
+        groups.setdefault(_sig(p), []).append(p)
+
+    models = settings["llm"]["models"][settings["llm"]["provider"]]
+    org_name = settings["org"]["name"]
+    subject = f'{settings["briefing"]["subject_prefix"]} — {date_h}'
+    failing = store.failing_sources(con)
+    show_consider = settings["briefing"].get("show_consider_section", True)
+    smtp_ready = all(config.env(k, required=False) for k in
+                     ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "EMAIL_FROM"))
+    sent_any = False
+
+    for members in groups.values():
+        rep = members[0]     # scoring config is identical across the group
+        label = "/".join(p["name"] for p in members)
+        try:
+            final, dup_map = prioritize_for_profile(con, cfg, client, rep, scored_pool)
+        except Exception as exc:
+            log.error("%s: profile scoring failed (%s) — skipping this group.", label, exc)
+            continue
+        if not final:
+            continue        # prioritize_for_profile already logged why
+
+        briefing, final = _synthesize_for_profile(client, cfg, models, label, final)
+        if briefing is None:
+            continue
+        try:
+            from src.prioritize import related_context
+            related_context.add_context(con, client, cfg, final, briefing)
+        except Exception as exc:
+            log.warning("%s: additional-context step skipped (%s)", label, exc)
+
+        group_sent = False
+        for p in members:
+            greeting = p.get("display_name") or p.get("name", "")
+            html = emailer.render_html(briefing, date_h, org_name, failing,
+                                       greeting=greeting, show_consider=show_consider)
+            tag = (p.get("name", "profile").split() or ["profile"])[0].lower()
+            (out_dir / f"{run_date}_{tag}.html").write_text(html, encoding="utf-8")
+            if dry_run or not smtp_ready or not p.get("email"):
+                log.info("Profile briefing for %s saved (%d stories)%s.", p.get("name"),
+                         len(briefing.get("stories", [])),
+                         " (dry run)" if dry_run else " but NOT sent (SMTP not ready / no email)")
+                continue
+            emailer.send(html, subject, {
+                "host": config.env("SMTP_HOST"), "port": config.env("SMTP_PORT"),
+                "user": config.env("SMTP_USER"), "password": config.env("SMTP_PASS"),
+                "from": config.env("EMAIL_FROM"), "to": [p["email"]]}, subtype="html")
+            log.info("Profile briefing (%d stories) emailed to %s <%s>",
+                     len(briefing.get("stories", [])), p.get("name"), p["email"])
+            group_sent = sent_any = True
+
+        # Consume dedup state for THIS group's stories only once it really went out —
+        # same principle as the shared pipeline.
+        if group_sent:
+            ids = [a["id"] for a in final]
+            extra = list(dup_map.get(None, []))
+            for i in ids:
+                extra.extend(dup_map.get(i, []))
+            store.mark_briefed(con, ids + extra, datetime.now(timezone.utc).isoformat())
+            con.commit()
+
+    return sent_any
+
+
+def _run_semantic_pass(con, cfg, client, use_llm, scored_pool, date_h, dry_run,
+                       run_date, out_dir, recipients_override) -> None:
+    """Fail-safe entry point for the semantic-profile pass.
+
+    Called from BOTH delivery paths — the normal one and the quiet-day one — so these
+    profiles are still scored on their own merits on a day when nothing clears the house
+    bar (select_threshold is 80, so that is a routine occurrence, not an edge case).
+    Any failure is logged and swallowed: this pass must never take the shared briefing
+    down with it.
+    """
+    if recipients_override:      # --recipients is a limited TEST send; skip real profiles
+        return
+    try:
+        _send_semantic_profiles(con, cfg, client, use_llm, scored_pool, date_h,
+                                dry_run, run_date, out_dir)
+    except Exception as exc:
+        log.error("Semantic-profile pass failed (%s) — the shared briefing is unaffected.",
+                  exc)
+
+
 def main():
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="don't send email; save HTML locally")
     ap.add_argument("--no-yutori", action="store_true")
@@ -579,7 +871,7 @@ def main():
 
     client = LLMClient(cfg["settings"]["llm"]["provider"]) if use_llm else None
     try:
-        top, runners, dup_map = prioritize(con, cfg, client, use_llm)
+        top, runners, dup_map, scored_pool = prioritize(con, cfg, client, use_llm)
     except llm_relevance.ScoringUnavailable as exc:
         # LLM down during scoring — fail (don't send a false quiet-day note) so the watchdog
         # alerts and a re-trigger retries until the LLM is back.
@@ -605,6 +897,10 @@ def main():
         (out_dir / f"{run_date}_digest.html").write_text(quiet_html, encoding="utf-8")
         _send_html(settings, f'{settings["briefing"]["subject_prefix"]} — {date_h} (quiet day)',
                    quiet_html, args.dry_run, run_date, label="Quiet-day note")
+        # Quiet for the house bar is not necessarily quiet for a specific role, so the
+        # semantic profiles still get their own prioritization before we bail out.
+        _run_semantic_pass(con, cfg, client, use_llm, scored_pool, date_h, args.dry_run,
+                           run_date, out_dir, args.recipients)
         return
 
     def _basic_briefing(items):
@@ -744,6 +1040,13 @@ def main():
         if sent is None:
             sent = _send_html(settings, f'{settings["briefing"]["subject_prefix"]} — {date_h}',
                               digest_html, args.dry_run, run_date, label="Digest")
+
+    # Second, independent prioritization: semantic profiles (Ambulatory Leadership) are
+    # re-scored against their own role_description over the SAME scored_pool — one
+    # ingestion, one house-scoring pass, two prioritizations. Runs after the shared send
+    # so overlapping stories inherit its deep-dive enrichment.
+    _run_semantic_pass(con, cfg, client, use_llm, scored_pool, date_h, args.dry_run,
+                       run_date, out_dir, args.recipients)
 
     # Only consume dedup state when the briefing actually went out — a dry run or a
     # failed/skipped send must not mark stories as already-briefed.

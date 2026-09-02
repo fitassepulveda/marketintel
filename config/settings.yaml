@@ -759,8 +759,17 @@ yutori:
   # Bounded + fail-safe: paywalled/errored/timed-out stories are simply left as-is; this can
   # never delay or break the send. Needs a working YUTORI_API_KEY (and enough credit).
   deep_dive:
-    enabled: true
+    # Set false 2026-09-02: the Yutori key has no credit, so every browse/research POST
+    # just fails and logs. Flip back to true once the key is funded — nothing else needs
+    # to change; enrichment resumes on the next run.
+    enabled: false
     browse_all: true            # Browsing on every reported story (the specificity fix)
+    # Also deep-dive the stories that ONLY a role-scored profile briefing selected
+    # (config/profiles.yaml role_description profiles). Stories shared with the house
+    # briefing are enriched either way at no extra cost; this flag only covers the
+    # profile-only ones, which are additional Yutori spend on top of the budget below.
+    # Off = those stories are written from title + summary.
+    profiles: false
     # Raised 8 -> 9 on 2026-08-10 to hold the $100/mo Yutori budget with SEVEN scouts.
     # Scouting is a fixed $74.48/mo, leaving ~$25 for browsing + research; at threshold 8
     # research alone ran ~$22.59/mo (2.93 tasks/day) and put the total at ~$106. At 9 it is

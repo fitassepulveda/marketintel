@@ -11,6 +11,7 @@ strategic dimensions (each 0-10) listed in DIMENSIONS below. These are:
 This module is ADDITIVE: it does not modify store.py or llm_relevance.py.
 It ensures its own DB column exists and writes to it directly.
 """
+from __future__ import annotations
 import json
 import logging
 import sqlite3
