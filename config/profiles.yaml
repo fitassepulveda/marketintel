@@ -243,6 +243,10 @@ profiles:
     display_name: "Rafic"
     email: "rwarwar@miami.edu"
     active: true
+    # Same bar as the shared briefing (briefing.select_threshold): full story cards only
+    # for stories the role lens rates 8.0/10 or above. Overrides defaults.threshold (55),
+    # which put 7.x items in as full cards on 2026-09-02. max_stories stays the default 12.
+    threshold: 80
     role_description: >
       Leads the ambulatory (outpatient) enterprise — both the operational and clinical
       sides — for an academic health system in South Florida. On the operational side:
@@ -344,6 +348,7 @@ profiles:
     display_name: "Dr. Weiss"
     email: "rew25@miami.edu"
     active: true
+    threshold: 80
     role_description: >
       Leads the ambulatory (outpatient) enterprise — both the operational and clinical
       sides — for an academic health system in South Florida. On the operational side:
@@ -440,6 +445,7 @@ profiles:
     display_name: "Maura"
     email: "mshiffman@miami.edu"
     active: true
+    threshold: 80
     role_description: >
       Leads the ambulatory (outpatient) enterprise — both the operational and clinical
       sides — for an academic health system in South Florida. On the operational side:
