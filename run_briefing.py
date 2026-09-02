@@ -591,10 +591,22 @@ def prioritize_for_profile(con, cfg, client, profile: dict, scored_pool: list[di
     todo = [a for a in scored_pool if a["id"] not in cached]
     if todo:
         results = PR.score_batch(client, models["scoring"], settings["org"], profile, todo)
+        unscored = 0
         for art, (score, why) in zip(todo, results):
+            # score_batch returns the (0.0, "not scored") placeholder for any batch that
+            # failed, and for items the model silently skipped. Caching that would record
+            # it as this profile's real judgment and freeze the article at 0 forever —
+            # the house scorer guards against exactly this (llm_relevance._has_saved_score).
+            # Leave them uncached so the next run simply re-scores them.
+            if why == "not scored":
+                unscored += 1
+                continue
             PR.save(con, art["id"], profile["name"], score, why)
             cached[art["id"]] = (score, why)
         con.commit()
+        if unscored:
+            log.warning("%s: %d item(s) came back unscored — left uncached for the next run.",
+                        profile["name"], unscored)
 
     # Work on COPIES: these dicts are the same objects the house pipeline holds in `top`,
     # and this pass's scores must never leak into the shared briefing.
@@ -701,8 +713,21 @@ def _synthesize_for_profile(client, cfg, models, label: str, final: list[dict]):
     try:
         briefing = _build(final)
     except Exception as exc:
-        log.error("%s: synthesis failed (%s) — skipping this group.", label, exc)
-        return None, []
+        # Most likely cause is the model overrunning max_tokens_synthesis and returning
+        # truncated JSON (seen 2026-09-02 with a 12-story list: "Expecting ',' delimiter").
+        # Halve the list and try once more — a shorter briefing beats no briefing.
+        half = final[: max(3, len(final) // 2)]
+        if len(half) >= len(final):
+            log.error("%s: synthesis failed (%s) — skipping this group.", label, exc)
+            return None, []
+        log.warning("%s: synthesis failed (%s) — retrying with the top %d of %d stories.",
+                    label, exc, len(half), len(final))
+        try:
+            briefing = _build(half)
+            final = half
+        except Exception as exc2:
+            log.error("%s: synthesis failed again (%s) — skipping this group.", label, exc2)
+            return None, []
 
     missing = _reconcile_stories(briefing, final)
     if missing:

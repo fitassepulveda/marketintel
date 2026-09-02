@@ -726,7 +726,11 @@ llm:
     anthropic:
       scoring: "claude-haiku-4-5-20251001"
       synthesis: "claude-sonnet-4-6"
-  max_tokens_synthesis: 4000
+  # Raised 4000 -> 8000 on 2026-09-02: a 12-story briefing needs ~5,700 output tokens
+  # (measured ~463 tokens per story card) and was coming back as TRUNCATED JSON at 4000,
+  # which killed synthesis outright. This is a CEILING, not a target — the shared
+  # briefing still emits ~2,800 tokens, so its behaviour and cost are unchanged.
+  max_tokens_synthesis: 8000
 
 yutori:
   # Scouting API. Auth via X-API-Key header (YUTORI_API_KEY in .env).
