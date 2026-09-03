@@ -755,9 +755,9 @@ yutori:
   scout_scan_hour_local: 5
 
   # Per-story enrichment (src/ingest/deep_dive.py), run on the SELECTED briefing stories:
-  #   * BROWSING (Yutori Browsing API) on EVERY reported story — an agent reads the article
-  #     and extracts full content (type, size, services, $, location, dates). ~$0.015/step,
-  #     capped by browsing_max_steps (so ~$0.05-0.18 per article).
+  #   * BROWSING (Yutori Browsing API) on stories scoring >= browse_min_relevance — an agent
+  #     reads the article and extracts full content (type, size, services, $, location,
+  #     dates). ~$0.015/step, capped by browsing_max_steps (so ~$0.05-0.18 per article).
   #   * RESEARCH (Yutori Research API) ADDITIONALLY when llm_score >= research_min_relevance —
   #     a broader web pass for context/fact-check. ~$0.35 per task.
   # Bounded + fail-safe: paywalled/errored/timed-out stories are simply left as-is; this can
@@ -767,7 +767,10 @@ yutori:
     # just fails and logs. Flip back to true once the key is funded — nothing else needs
     # to change; enrichment resumes on the next run.
     enabled: false
-    browse_all: true            # Browsing on every reported story (the specificity fix)
+    browse_all: true            # Master on/off for the browsing phase; the score gate below
+                                 # decides WHICH reported stories actually get browsed.
+    browse_min_relevance: 8      # Added 2026-09-03: only browse stories scoring >= this
+                                 # (was every reported story regardless of score).
     # Also deep-dive the stories that ONLY a role-scored profile briefing selected
     # (config/profiles.yaml role_description profiles). Stories shared with the house
     # briefing are enriched either way at no extra cost; this flag only covers the

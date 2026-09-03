@@ -1,10 +1,11 @@
 """Per-story enrichment via Yutori (runs on the SELECTED briefing stories).
 
 Two layers, config-gated and fail-safe:
-  * BROWSING (Yutori Browsing API) on EVERY reported story — an agent opens the
-    article URL and extracts the full content (facility type, size, services,
-    dollar figures, location, dates). This is what gives the write-ups real
-    specificity instead of working from a bare headline. Billed per step (~$0.015).
+  * BROWSING (Yutori Browsing API) on stories scoring >= browse_min_relevance
+    (default 8) — an agent opens the article URL and extracts the full content
+    (facility type, size, services, dollar figures, location, dates). This is
+    what gives the write-ups real specificity instead of working from a bare
+    headline. Billed per step (~$0.015).
   * RESEARCH (Yutori Research API) ADDITIONALLY on high-relevance stories
     (llm_score >= research_min_relevance) — a broader multi-agent web pass for
     context/fact-checking. Billed ~$0.35 per task.
@@ -79,6 +80,7 @@ def _cfg(cfg: dict) -> dict:
     return {
         "enabled": bool(dd.get("enabled", False)),
         "browse_all": bool(dd.get("browse_all", True)),
+        "browse_min_relevance": float(dd.get("browse_min_relevance", 8)),
         "research_min_relevance": float(dd.get("research_min_relevance", 8)),
         "max_browse": int(dd.get("max_browse", 12)),
         "max_research": int(dd.get("max_research", 5)),
@@ -198,8 +200,9 @@ def _poll(c: dict, pending: dict) -> tuple[int, int]:
 
 
 def enrich_stories(stories: list[dict], cfg: dict) -> dict:
-    """Browse every reported story, THEN research the high-relevance ones. Mutates
-    stories in place (adds full_text / extracted_facts / research_context). Never raises.
+    """Browse stories scoring >= browse_min_relevance, THEN research the high-relevance
+    ones. Mutates stories in place (adds full_text / extracted_facts / research_context).
+    Never raises.
     Returns {'browsed': n, 'researched': n}.
 
     The phases are SEQUENTIAL on purpose (changed 2026-07-09): research queries are
@@ -215,7 +218,8 @@ def enrich_stories(stories: list[dict], cfg: dict) -> dict:
 
     # ---- Phase 1: BROWSE (read each article page) -------------------------------------
     browsed = 0
-    browse_targets = (stories[: c["max_browse"]] if c["browse_all"] else [])
+    browse_targets = ([s for s in stories if float(s.get("llm_score") or 0) >= c["browse_min_relevance"]]
+                       [: c["max_browse"]] if c["browse_all"] else [])
     pending: dict = {}  # task_id -> (story, kind)
     for s in browse_targets:
         if not s.get("url"):

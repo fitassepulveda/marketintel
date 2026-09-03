@@ -92,11 +92,13 @@ def synthesize_one(cfg, client, art: dict) -> dict:
 
 def force_yutori(cfg) -> None:
     """Force the deep-dive suite ON for this one article, regardless of settings.yaml
-    (keeps base_url/timeout from config). Research threshold dropped to 0 so the
-    research pass always fires — that's the 'suite' being tested."""
+    (keeps base_url/timeout from config). Both the browse and research relevance
+    thresholds are dropped to 0 so both passes always fire on this one article
+    regardless of its actual score — that's the 'suite' being tested."""
     y = cfg["settings"].setdefault("yutori", {})
     y["deep_dive"] = {**(y.get("deep_dive") or {}),
-                      "enabled": True, "browse_all": True, "research_min_relevance": 0,
+                      "enabled": True, "browse_all": True, "browse_min_relevance": 0,
+                      "research_min_relevance": 0,
                       "max_browse": 1, "max_research": 1,
                       "poll_timeout_seconds": 420, "poll_interval_seconds": 10}
 
