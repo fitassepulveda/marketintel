@@ -32,6 +32,8 @@ national_policy:
       url: "https://news.google.com/rss/search?q=site:modernhealthcare.com&hl=en-US&gl=US&ceid=US:en",
       }
   # Modern Healthcare Yutori dropped 2026-06-22 — paywalled, and headlines already covered by the Google News RSS above.
+  # Native WordPress RSS, verified live 2026-09-03.
+  - { name: Today's Hospitalist, type: rss, url: "https://www.todayshospitalist.com/feed/" }
   # AHCA (FL Agency for Health Care Administration) — hospital licensing, CON, Medicaid. Gov
   # site, no RSS. OUT OF YUTORI SCOPE 2026-08-10: low-velocity policy source, not worth
   # $10.64/mo at a daily scan. If re-enabled, weekly is the right interval (~$1.52/mo).
@@ -91,6 +93,9 @@ innovation_ai:
   # - { name: HIMSS,               type: yutori, url: "https://www.himss.org/news" }
   # Fierce Biotech: native RSS is flaky/bot-blocked (like Fierce Healthcare) — use a Google News proxy.
   - { name: Fierce Biotech,      type: rss,    url: "https://news.google.com/rss/search?q=site:fiercebiotech.com&hl=en-US&gl=US&ceid=US:en" }
+  # Native RSS, verified live 2026-09-03. Domain moved from endpts.com -> endpoints.news
+  # (endpts.com/feed/ still works but 302-redirects here; use this URL as canonical).
+  - { name: Endpoints News,      type: rss,    url: "https://endpoints.news/feed/" }
 
 public_health_risk:
   - { name: CDC Newsroom,        type: rss,    url: "https://tools.cdc.gov/api/v2/resources/media/132608.rss" }
