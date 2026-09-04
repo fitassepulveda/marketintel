@@ -42,6 +42,12 @@ def _quota_429(resp) -> bool:
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 GEMINI_EMBED_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbedContents"
 GEMINI_EMBED_MODEL = "gemini-embedding-001"
+# batchEmbedContents rejects a request carrying more than 100 items. embed() used to send
+# every text in ONE call, so once the dedup history seed grew past 100 (252 rows by
+# 2026-09-04) EVERY embedding call failed and both prioritization passes silently fell back
+# to keyword dedup -- which cannot see "buys store property from Kohl's" and "scoops up
+# Coconut Creek Kohl's store" as the same story. Chunk at this size instead.
+GEMINI_EMBED_MAX_BATCH = 100
 # Free tier allows 10 requests/minute on gemini-2.5-flash; pace ourselves to stay under.
 GEMINI_MIN_SECONDS_BETWEEN_CALLS = 7
 # Retries for transient overload responses (429/500/503), with exponential backoff.
@@ -178,14 +184,33 @@ class LLMClient:
         return text, sources
 
     def embed(self, texts: list[str], model: str = GEMINI_EMBED_MODEL) -> list[list[float]]:
-        """Return an embedding vector per input text (one batched Gemini call).
+        """Return one embedding vector per input text, IN INPUT ORDER.
 
         Uses the Gemini embeddings API regardless of chat provider — it only needs a
         GEMINI_API_KEY. Retries the transient overload codes like complete() does.
+
+        Sends GEMINI_EMBED_MAX_BATCH items per request and concatenates the results:
+        batchEmbedContents rejects anything larger, and callers rely on the returned list
+        lining up positionally with `texts` (prioritize() and prioritize_for_profile both
+        slice it as vecs[:len(pool)] / vecs[len(pool):] to separate pool from history
+        seed). A short or reordered result would silently attach the wrong vector to the
+        wrong article, so the length is asserted rather than trusted.
         """
         key = self._gemini_key if self.provider == "gemini" else os.environ.get("GEMINI_API_KEY", "")
         if not key:
             raise RuntimeError("GEMINI_API_KEY required for embeddings")
+        if not texts:
+            return []
+        out: list[list[float]] = []
+        for start in range(0, len(texts), GEMINI_EMBED_MAX_BATCH):
+            chunk = texts[start:start + GEMINI_EMBED_MAX_BATCH]
+            out.extend(self._embed_batch(chunk, model, key))
+        if len(out) != len(texts):
+            raise RuntimeError(f"embed(): got {len(out)} vectors for {len(texts)} texts")
+        return out
+
+    def _embed_batch(self, texts: list[str], model: str, key: str) -> list[list[float]]:
+        """One batchEmbedContents call for at most GEMINI_EMBED_MAX_BATCH texts."""
         body = {"requests": [
             {"model": f"models/{model}", "content": {"parts": [{"text": (t or "")[:2000]}]}}
             for t in texts
@@ -198,11 +223,18 @@ class LLMClient:
             if _quota_429(resp):
                 raise QuotaExhausted(f"Gemini quota exhausted: {resp.text[:300]}")
             if resp.status_code in (429, 500, 503) and attempt < GEMINI_MAX_RETRIES - 1:
-                time.sleep(GEMINI_MIN_SECONDS_BETWEEN_CALLS * (2 ** attempt))
+                backoff = min(GEMINI_BACKOFF_CAP,
+                              GEMINI_MIN_SECONDS_BETWEEN_CALLS * (2 ** attempt))
+                log.warning("Gemini embed %s — retry %d/%d in %ds",
+                            resp.status_code, attempt + 1, GEMINI_MAX_RETRIES - 1, backoff)
+                time.sleep(backoff)
                 continue
             break
         resp.raise_for_status()
-        return [e["values"] for e in resp.json()["embeddings"]]
+        vecs = [e["values"] for e in resp.json()["embeddings"]]
+        if len(vecs) != len(texts):
+            raise RuntimeError(f"embed(): batch returned {len(vecs)} vectors for {len(texts)} texts")
+        return vecs
 
 
 def strip_fences(text: str) -> str:
