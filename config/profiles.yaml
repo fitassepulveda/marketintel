@@ -51,7 +51,7 @@ profiles:
 
   - name: "AXS"
     title: ""
-    display_name: "Colleague"   # TODO: replace with the recipient's first name for the greeting
+    display_name: "Aaron"       # was the placeholder "Colleague"; set 2026-09-04
     email: "axs9248@miami.edu"
     active: true
 
