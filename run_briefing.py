@@ -562,6 +562,48 @@ def _send_personalized(settings, briefing, date_h, failing, dry_run, run_date, o
     return sent_any
 
 
+def _send_quiet_personalized(settings, date_h, failing, dry_run, run_date, out_dir, runners):
+    """Deliver the QUIET-DAY note to each ACTIVE name-only profile, individually, with a
+    personal greeting — the same delivery shape as _send_personalized.
+
+    Returns None if no such profiles are configured (caller falls back to the single
+    shared note), True if at least one real email was sent, else False.
+
+    Why this exists (2026-09-04): the quiet-day branch used to call _send_html, which
+    sends ONE message to briefing.digest_recipients with everybody in the To: line and no
+    greeting, and returned before _send_personalized ever ran. Two consequences, both
+    observed live: recipients got a single shared email instead of their own, and any
+    active profile NOT on digest_recipients (AXS) received nothing at all on a quiet day.
+    Semantic profiles are excluded here exactly as in _send_personalized — they are
+    scored and delivered separately by _send_semantic_profiles.
+    """
+    profs = [p for p in profiles_mod.active_profiles() if not profiles_mod.uses_semantic_scoring(p)]
+    if not profs:
+        return None
+    subject = f'{settings["briefing"]["subject_prefix"]} — {date_h} (quiet day)'
+    smtp_ready = all(config.env(k, required=False) for k in
+                     ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "EMAIL_FROM"))
+    sent_any = False
+    for p in profs:
+        greeting = p.get("display_name") or p.get("name", "")
+        html = emailer.render_quiet_html(
+            date_h, settings["org"]["name"], settings["briefing"]["lookback_hours"],
+            failing, runners=runners, greeting=greeting)
+        tag = (p.get("name", "profile").split() or ["profile"])[0].lower()
+        (out_dir / f"{run_date}_{tag}.html").write_text(html, encoding="utf-8")
+        if dry_run or not smtp_ready or not p.get("email"):
+            log.info("Quiet-day note for %s saved%s.", p.get("name"),
+                     " (dry run)" if dry_run else " but NOT sent (SMTP not ready / no email)")
+            continue
+        emailer.send(html, subject, {
+            "host": config.env("SMTP_HOST"), "port": config.env("SMTP_PORT"),
+            "user": config.env("SMTP_USER"), "password": config.env("SMTP_PASS"),
+            "from": config.env("EMAIL_FROM"), "to": [p["email"]]}, subtype="html")
+        log.info("Quiet-day note emailed to %s <%s>", p.get("name"), p["email"])
+        sent_any = True
+    return sent_any
+
+
 def prioritize_for_profile(con, cfg, client, profile: dict, scored_pool: list[dict]
                            ) -> tuple[list[dict], list[dict], dict]:
     """A SECOND, independent prioritization over the SAME already-ingested,
@@ -952,13 +994,22 @@ def main():
     if not top:
         log.info("No stories cleared the threshold — sending a quiet-day note (%d lighter "
                  "item(s) attached).", len(runners or []))
+        failing_now = store.failing_sources(con)
         quiet_html = emailer.render_quiet_html(
             date_h, settings["org"]["name"], settings["briefing"]["lookback_hours"],
-            store.failing_sources(con), runners=runners,
+            failing_now, runners=runners,
         )
         (out_dir / f"{run_date}_digest.html").write_text(quiet_html, encoding="utf-8")
-        _send_html(settings, f'{settings["briefing"]["subject_prefix"]} — {date_h} (quiet day)',
-                   quiet_html, args.dry_run, run_date, label="Quiet-day note")
+        # Per-profile first (individual emails, personal greeting), exactly as the normal
+        # delivery path does. Only fall back to the single shared note if no name-only
+        # profiles exist. Before 2026-09-04 this branch ALWAYS sent the shared note, so a
+        # quiet day silently downgraded everyone to one greeting-less group email and
+        # skipped profiles absent from digest_recipients.
+        quiet_sent = _send_quiet_personalized(settings, date_h, failing_now, args.dry_run,
+                                              run_date, out_dir, runners)
+        if quiet_sent is None:
+            _send_html(settings, f'{settings["briefing"]["subject_prefix"]} — {date_h} (quiet day)',
+                       quiet_html, args.dry_run, run_date, label="Quiet-day note")
         # Quiet for the house bar is not necessarily quiet for a specific role, so the
         # semantic profiles still get their own prioritization before we bail out.
         _run_semantic_pass(con, cfg, client, use_llm, scored_pool, date_h, args.dry_run,

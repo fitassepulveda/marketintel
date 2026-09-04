@@ -528,12 +528,21 @@ def render_digest_html(stories: list[dict], date_str: str, org_short: str,
 
 def render_quiet_html(date_str: str, org_name: str, lookback_hours: int,
                       failing: list[str] | None = None,
-                      runners: list[dict] | None = None) -> str:
-    """Short 'nothing material today' note — sent so a quiet day isn't silent."""
+                      runners: list[dict] | None = None,
+                      greeting: str | None = None) -> str:
+    """Short 'nothing material today' note — sent so a quiet day isn't silent.
+
+    `greeting` renders the same "Good morning <name>," line as render_html, so a quiet
+    day can be delivered per profile as individual emails rather than one shared note
+    with everybody in the To: line (which is what happened on 2026-09-04, and which also
+    silently dropped any profile not on briefing.digest_recipients, e.g. AXS).
+    """
     days = max(1, round(lookback_hours / 24))
     parts = [
         '<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;'
         'color:#222;font-size:14px;line-height:1.5">',
+        (f'<p style="font-size:12px;margin:0 0 3px">Good morning {escape(greeting)},</p>'
+         if greeting else ''),
         f'<p style="color:#1F3864;font-size:15px;font-weight:bold;margin:0 0 8px">'
         f'Market Intelligence Briefing — {escape(date_str)}</p>',
         f'<p>No developments cleared the relevance threshold over the past {days} days — '
