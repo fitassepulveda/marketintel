@@ -35,11 +35,13 @@ profiles:
     email: "psharma@miami.edu"
     active: true
 
+  # Removed from the briefing 2026-09-04 at the user's request. Email and display_name
+  # kept so the profile can be restored by flipping active back to true.
   - name: "CJ"
     title: "Associate, Strategy & Transformation"
     display_name: "CJ"
     email: "cjvonherrath@miami.edu"
-    active: true
+    active: false
 
   - name: "Fernando"
     title: "S&T Intern"
